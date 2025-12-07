@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-function Settings({ onClose }) {
+function Settings({ onClose, settings, onSettingsChange, onRestoreDefaults }) {
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -18,6 +18,38 @@ function Settings({ onClose }) {
         <div className="settings-header">
           <h2>Settings</h2>
           <button className="close-button" onClick={onClose}>×</button>
+        </div>
+
+        <div className="settings-section">
+          <h3>Audio</h3>
+          <div className="settings-list">
+            <div className="setting-row">
+              <div className="setting-info">
+                <span className="setting-label">Maximum Polyphony</span>
+                <span className="setting-desc">Limit simultaneous voices to reduce CPU usage</span>
+              </div>
+              <input
+                type="number"
+                className="setting-number-input"
+                value={settings?.maxPolyphony ?? 64}
+                onChange={(e) => onSettingsChange?.('maxPolyphony', parseInt(e.target.value) || 64)}
+                min="1"
+                max="128"
+              />
+            </div>
+            <div className="setting-row">
+              <div className="setting-info">
+                <span className="setting-label">Multi-channel Orbits</span>
+                <span className="setting-desc">Route orbits to separate audio channels</span>
+              </div>
+              <button
+                className={`setting-toggle ${settings?.multiChannelOrbits ? 'active' : ''}`}
+                onClick={() => onSettingsChange?.('multiChannelOrbits', !settings?.multiChannelOrbits)}
+              >
+                {settings?.multiChannelOrbits ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="settings-section">
@@ -52,10 +84,15 @@ function Settings({ onClose }) {
             , a JavaScript port of TidalCycles.
           </p>
         </div>
+
+        <div className="settings-section">
+          <button className="restore-defaults-btn" onClick={onRestoreDefaults}>
+            Restore Default Settings
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
 export default Settings
-

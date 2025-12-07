@@ -1,6 +1,6 @@
 # Algorave Strudel
 
-A web-based live coding environment for music, inspired by the Algorave desktop app. Built on [Strudel](https://strudel.cc/).
+A web-based live coding environment for music. Built on [Strudel](https://strudel.cc/).
 
 ## Stack
 

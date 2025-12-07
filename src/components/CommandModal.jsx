@@ -10,9 +10,11 @@ function CommandModal({ patterns, onPatternUpdate, onHush, isInitialized }) {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [isDragOver, setIsDragOver] = useState(false)
   const [zIndex, setZIndex] = useState(100)
+  const [error, setError] = useState(null)
   
   const inputRef = useRef(null)
   const modalRef = useRef(null)
+  const errorTimeoutRef = useRef(null)
 
   // Min/max size constraints
   const minWidth = 200
@@ -73,11 +75,15 @@ function CommandModal({ patterns, onPatternUpdate, onHush, isInitialized }) {
   }, [isDragging, isResizing, dragOffset, size, maxWidth, maxHeight])
 
   const handleKeyDown = async (e) => {
+    // Use the DOM value directly since React state may not have updated yet
+    const currentValue = e.target.value
     // Shift+Enter = new line
     // Enter alone = submit
-    if (e.key === 'Enter' && !e.shiftKey && input.trim() && !isProcessing) {
+    if (e.key === 'Enter' && !e.shiftKey && currentValue.trim() && !isProcessing) {
       e.preventDefault()
-      await handleSubmit()
+      // Set input from DOM value before submitting
+      setInput(currentValue)
+      await handleSubmitWithCode(currentValue.trim())
     }
     if (e.key === 'Escape') {
       setInput('')
@@ -112,23 +118,48 @@ function CommandModal({ patterns, onPatternUpdate, onHush, isInitialized }) {
     }
   }
 
-  const handleSubmit = async () => {
-    if (!input.trim() || isProcessing || !isInitialized) return
+  // Clear error after timeout
+  const showError = useCallback((message) => {
+    setError(message)
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current)
+    }
+    errorTimeoutRef.current = setTimeout(() => {
+      setError(null)
+    }, 5000)
+  }, [])
 
-    const code = input.trim()
-    setInput('')
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleSubmitWithCode = async (code) => {
+    if (!code || isProcessing || !isInitialized) return
+
     setIsProcessing(true)
+    setError(null)
 
     try {
       // Check for hush command
       if (code === 'hush' || code === 'hush()') {
         onHush()
+        setInput('')
       } else {
         // Parse slot from code if it follows d1-d16 pattern
         const slotMatch = code.match(/^(d\d+)\s*=/)
         
-        // Execute the code
-        await eval(`(async () => { ${code}.play() })()`)
+        // Evaluate and play the pattern using global eval
+        // The strudel functions are on window after initStrudel()
+        const playCode = `(${code}).play()`
+        eval(playCode)
+        
+        // Success - clear input and update slot
+        setInput('')
         
         // If we detected a slot assignment, update that slot
         if (slotMatch) {
@@ -142,6 +173,10 @@ function CommandModal({ patterns, onPatternUpdate, onHush, isInitialized }) {
       }
     } catch (err) {
       console.error('Strudel error:', err)
+      // Keep input for editing and show error
+      setInput(code)
+      const errorMessage = err.message || 'Error processing pattern'
+      showError(errorMessage)
     } finally {
       setIsProcessing(false)
       inputRef.current?.focus()
@@ -188,10 +223,16 @@ function CommandModal({ patterns, onPatternUpdate, onHush, isInitialized }) {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         placeholder='note("<c3 e3 g3>").s("piano")'
-        className={`command-input ${isDragOver ? 'drag-over' : ''}`}
+        className={`command-input ${isDragOver ? 'drag-over' : ''} ${error ? 'has-error' : ''}`}
         disabled={isProcessing || !isInitialized}
         autoFocus
       />
+      {error ? (
+        <div className="error-toast" onClick={() => setError(null)}>
+          <span className="error-icon">⚠</span>
+          <span className="error-message">{error}</span>
+        </div>
+      ) : null}
       <div className="resize-handle" onMouseDown={handleResizeMouseDown} />
     </div>
   )
