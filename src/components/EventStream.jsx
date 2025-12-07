@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import TrackEffects, { DEFAULT_FX_STATE } from './TrackEffects'
 import InstrumentPicker from './InstrumentPicker'
-import ModeToggle from './ModeToggle'
 import PianoRollPanel from './PianoRollPanel'
 
 // Color palette for different channels (matching desktop app)
@@ -71,28 +70,6 @@ const StopIcon = () => (
     <rect x="4" y="4" width="16" height="16" rx="2" />
   </svg>
 )
-
-// Code display component (read-only, shows generated pattern)
-function CodeDisplay({ 
-  pattern, 
-  color, 
-  isActive, 
-  isMuted
-}) {
-  return (
-    <div className="code-display-wrapper">
-      <input
-        type="text"
-        value={pattern || ''}
-        readOnly
-        placeholder="Pattern will appear here..."
-        className={`code-display ${isActive ? 'active' : ''} ${isMuted ? 'muted' : ''}`}
-        style={{ '--track-color': color }}
-        title={pattern || 'No pattern'}
-      />
-    </div>
-  )
-}
 
 // Editable track label component
 function TrackLabel({ slot, channelNum, customName, onNameChange, color }) {
@@ -204,31 +181,17 @@ function EventStream({
     onTrackGridUpdate(slot, {
       ...existingGrid,
       instrument,
-      // Keep existing notes if any
     })
     setInstrumentPickerSlot(null)
-    // Auto-open piano roll if mode is already set
-    if (existingGrid.mode) {
-      setPianoRollSlot(slot)
-    }
-  }, [onTrackGridUpdate, trackGrids])
-
-  // Handle mode change
-  const handleModeChange = useCallback((slot, mode) => {
-    onTrackGridUpdate(slot, {
-      ...trackGrids[slot],
-      mode,
-      notes: [] // Clear notes on mode change
-    })
-    // Auto-open piano roll when mode is set
+    // Auto-open piano roll when instrument is selected
     setPianoRollSlot(slot)
   }, [onTrackGridUpdate, trackGrids])
 
-  // Handle notes change from piano roll
-  const handleNotesChange = useCallback((slot, notes) => {
+  // Handle full grid update (mode + notes) - prevents race conditions
+  const handleGridUpdate = useCallback((slot, updates) => {
     onTrackGridUpdate(slot, {
       ...trackGrids[slot],
-      notes
+      ...updates,
     })
   }, [onTrackGridUpdate, trackGrids])
 
@@ -331,45 +294,30 @@ function EventStream({
             >
               {hasInstrument ? trackGrid.instrument : '+'}
             </button>
-
-            {/* Mode Toggle */}
-            <ModeToggle
-              mode={trackGrid.mode}
-              onChange={(mode) => handleModeChange(slot, mode)}
-              disabled={!hasInstrument}
-            />
             
-            {/* Grid Button - opens piano roll */}
+            {/* Grid Button - opens piano roll / note selector */}
             <button
               className={`grid-btn ${pianoRollSlot === slot ? 'active' : ''}`}
               onClick={() => handleOpenPianoRoll(slot)}
-              disabled={!hasInstrument || !trackGrid.mode}
-              title={!trackGrid.mode ? 'Select mode first' : 'Open grid'}
+              disabled={!hasInstrument}
+              title={hasInstrument ? 'Edit notes' : 'Select instrument first'}
               style={{ '--btn-color': color }}
             >
-              ▦
+              {trackGrid.mode === 'melodic' ? '🎹' : '🥁'}
             </button>
-            
-            <CodeDisplay
-              pattern={pattern}
-              color={color}
-              isActive={isActive}
-              isMuted={isMuted}
-            />
 
-            {isActive && (
-              <button
-                className={`channel-mute-btn ${isMuted ? 'muted' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleMute(slot)
-                }}
-                title={isMuted ? 'Unmute channel' : 'Mute channel'}
-                aria-label={isMuted ? 'Unmute channel' : 'Mute channel'}
-              >
-                <MuteIcon muted={isMuted} />
-              </button>
-            )}
+            <button
+              className={`channel-mute-btn ${isMuted ? 'muted' : ''} ${!isActive ? 'disabled' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (isActive) onToggleMute(slot)
+              }}
+              disabled={!isActive}
+              title={isActive ? (isMuted ? 'Unmute channel' : 'Mute channel') : 'No pattern to mute'}
+              aria-label={isMuted ? 'Unmute channel' : 'Mute channel'}
+            >
+              <MuteIcon muted={isMuted} />
+            </button>
             
             {/* FX Button - enabled when track has content */}
             <button
@@ -434,10 +382,11 @@ function EventStream({
           trackNumber={getTrackNumber(pianoRollSlot)}
           trackName={trackNames?.[pianoRollSlot]}
           color={CHANNEL_COLORS[getTrackNumber(pianoRollSlot) - 1] || '#ffffff'}
-          mode={trackGrids[pianoRollSlot].mode}
           instrument={trackGrids[pianoRollSlot].instrument}
-          notes={trackGrids[pianoRollSlot].notes || []}
-          onNotesChange={(notes) => handleNotesChange(pianoRollSlot, notes)}
+          activeMode={trackGrids[pianoRollSlot].mode}
+          melodicNotes={trackGrids[pianoRollSlot].melodicNotes || []}
+          percussiveNotes={trackGrids[pianoRollSlot].percussiveNotes || []}
+          onGridUpdate={(updates) => handleGridUpdate(pianoRollSlot, updates)}
           onClose={() => setPianoRollSlot(null)}
         />
       )}

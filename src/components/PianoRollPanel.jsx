@@ -15,21 +15,36 @@ function useDebounce(callback, delay) {
   }, [callback, delay])
 }
 
-// Play preview sound
+// Preview sound disabled - pattern updates in real-time instead
 function playPreview(instrument, note) {
-  try {
-    if (note) {
-      eval(`note("${note}").s("${instrument}").play()`)
-    } else {
-      eval(`s("${instrument}").play()`)
-    }
-  } catch (e) {
-    console.error('Preview error:', e)
-  }
+  // Disabled to avoid interference with main playback
+  // The pattern will update and replay automatically
+}
+
+// Mode Toggle Component (inside panel)
+function InlineModeToggle({ mode, onModeChange }) {
+  return (
+    <div className="inline-mode-toggle">
+      <button
+        className={`mode-btn ${mode === 'melodic' ? 'active' : ''}`}
+        onClick={() => onModeChange('melodic')}
+        title="Keyboard / Melodic mode"
+      >
+        🎹
+      </button>
+      <button
+        className={`mode-btn ${mode === 'percussive' ? 'active' : ''}`}
+        onClick={() => onModeChange('percussive')}
+        title="Drum / Percussive mode"
+      >
+        🥁
+      </button>
+    </div>
+  )
 }
 
 // Melodic Grid Component
-function MelodicGrid({ instrument, notes, onNotesChange, color, currentOctave, onOctaveChange }) {
+function MelodicGrid({ instrument, notes, onNoteAdd, onNoteRemove, color, currentOctave, onOctaveChange }) {
   const gridRef = useRef(null)
   const noteData = getNoteNames(currentOctave, 2)
   
@@ -42,13 +57,13 @@ function MelodicGrid({ instrument, notes, onNotesChange, color, currentOctave, o
     
     if (existingIndex >= 0) {
       // Remove note
-      onNotesChange(notes.filter((_, i) => i !== existingIndex))
+      onNoteRemove(step, note)
     } else {
       // Add note and play preview
       debouncedPreview(instrument, note)
-      onNotesChange([...notes, { step, note }])
+      onNoteAdd(step, note)
     }
-  }, [notes, onNotesChange, instrument, debouncedPreview])
+  }, [notes, onNoteAdd, onNoteRemove, instrument, debouncedPreview])
   
   const isNoteActive = useCallback((step, note) => {
     return notes.some(n => n.step === step && n.note === note)
@@ -109,7 +124,7 @@ function MelodicGrid({ instrument, notes, onNotesChange, color, currentOctave, o
 }
 
 // Percussive Grid Component (single row step sequencer)
-function PercussiveGrid({ instrument, notes, onNotesChange, color }) {
+function PercussiveGrid({ instrument, notes, onNoteAdd, onNoteRemove, color }) {
   const debouncedPreview = useDebounce((inst) => {
     playPreview(inst, null)
   }, 50)
@@ -119,13 +134,13 @@ function PercussiveGrid({ instrument, notes, onNotesChange, color }) {
     
     if (existingIndex >= 0) {
       // Remove note
-      onNotesChange(notes.filter((_, i) => i !== existingIndex))
+      onNoteRemove(step)
     } else {
       // Add note and play preview
       debouncedPreview(instrument)
-      onNotesChange([...notes, { step }])
+      onNoteAdd(step)
     }
-  }, [notes, onNotesChange, instrument, debouncedPreview])
+  }, [notes, onNoteAdd, onNoteRemove, instrument, debouncedPreview])
   
   const isStepActive = useCallback((step) => {
     return notes.some(n => n.step === step)
@@ -174,37 +189,96 @@ function PercussiveGrid({ instrument, notes, onNotesChange, color }) {
   )
 }
 
+// Calculate optimal starting octave based on existing notes
+function getOptimalOctave(notes) {
+  if (!notes || notes.length === 0) return 3 // Default
+  
+  // Extract octaves from note names (e.g., "c3", "e4", "b5")
+  const octaves = notes
+    .filter(n => n.note)
+    .map(n => {
+      const match = n.note.match(/\d+$/)
+      return match ? parseInt(match[0]) : null
+    })
+    .filter(o => o !== null)
+  
+  if (octaves.length === 0) return 3
+  
+  // Find the median octave to center the view
+  const sorted = [...octaves].sort((a, b) => a - b)
+  const median = sorted[Math.floor(sorted.length / 2)]
+  
+  // Clamp to valid range (1-5)
+  return Math.max(1, Math.min(5, median - 1))
+}
+
 // Main Piano Roll Panel Component
 function PianoRollPanel({ 
   trackNumber, 
   trackName, 
   color, 
-  mode, 
   instrument, 
-  notes = [], 
-  onNotesChange, 
+  // Current active mode (determines which notes are used for playback)
+  activeMode,
+  // Notes stored separately by mode
+  melodicNotes = [],
+  percussiveNotes = [],
+  // Single callback for all grid updates
+  onGridUpdate,
   onClose 
 }) {
-  const [currentOctave, setCurrentOctave] = useState(3)
+  // View mode - which grid is currently shown (can differ from activeMode)
+  // Default to percussive (drum) mode
+  const [viewMode, setViewMode] = useState(activeMode || 'percussive')
+  // Initialize octave based on existing melodic notes
+  const [currentOctave, setCurrentOctave] = useState(() => getOptimalOctave(melodicNotes))
   const panelRef = useRef(null)
   
-  const handleClear = useCallback(() => {
-    onNotesChange([])
-  }, [onNotesChange])
-  
   const displayName = trackName || `Track ${trackNumber}`
-  const modeIcon = mode === 'melodic' ? '🎹' : '🥁'
   
-  // Handle click outside to close (optional - can be removed if not desired)
-  // useEffect(() => {
-  //   const handleClickOutside = (e) => {
-  //     if (panelRef.current && !panelRef.current.contains(e.target)) {
-  //       onClose()
-  //     }
-  //   }
-  //   document.addEventListener('mousedown', handleClickOutside)
-  //   return () => document.removeEventListener('mousedown', handleClickOutside)
-  // }, [onClose])
+  // Get notes for current view
+  const currentNotes = viewMode === 'melodic' ? melodicNotes : percussiveNotes
+  
+  // Handle adding a melodic note - clears drum notes (mutually exclusive)
+  const handleMelodicNoteAdd = useCallback((step, note) => {
+    // Single atomic update: set mode, clear other notes, add this note
+    onGridUpdate({
+      mode: 'melodic',
+      melodicNotes: [...melodicNotes, { step, note }],
+      percussiveNotes: [], // Clear drum notes
+    })
+  }, [melodicNotes, onGridUpdate])
+  
+  const handleMelodicNoteRemove = useCallback((step, note) => {
+    onGridUpdate({
+      melodicNotes: melodicNotes.filter(n => !(n.step === step && n.note === note)),
+    })
+  }, [melodicNotes, onGridUpdate])
+  
+  // Handle adding a percussive note - clears melodic notes (mutually exclusive)
+  const handlePercussiveNoteAdd = useCallback((step) => {
+    // Single atomic update: set mode, clear other notes, add this note
+    onGridUpdate({
+      mode: 'percussive',
+      percussiveNotes: [...percussiveNotes, { step }],
+      melodicNotes: [], // Clear melodic notes
+    })
+  }, [percussiveNotes, onGridUpdate])
+  
+  const handlePercussiveNoteRemove = useCallback((step) => {
+    onGridUpdate({
+      percussiveNotes: percussiveNotes.filter(n => n.step !== step),
+    })
+  }, [percussiveNotes, onGridUpdate])
+  
+  // Clear notes for current view
+  const handleClear = useCallback(() => {
+    if (viewMode === 'melodic') {
+      onGridUpdate({ melodicNotes: [] })
+    } else {
+      onGridUpdate({ percussiveNotes: [] })
+    }
+  }, [viewMode, onGridUpdate])
   
   return (
     <div 
@@ -214,8 +288,12 @@ function PianoRollPanel({
     >
       <div className="piano-roll-header">
         <span className="piano-roll-title">
-          {displayName} - {modeIcon} {instrument}
+          {displayName} - {instrument}
         </span>
+        <InlineModeToggle 
+          mode={viewMode} 
+          onModeChange={setViewMode}
+        />
         <button 
           className="piano-roll-close"
           onClick={onClose}
@@ -226,11 +304,12 @@ function PianoRollPanel({
       </div>
       
       <div className="piano-roll-content">
-        {mode === 'melodic' ? (
+        {viewMode === 'melodic' ? (
           <MelodicGrid
             instrument={instrument}
-            notes={notes}
-            onNotesChange={onNotesChange}
+            notes={melodicNotes}
+            onNoteAdd={handleMelodicNoteAdd}
+            onNoteRemove={handleMelodicNoteRemove}
             color={color}
             currentOctave={currentOctave}
             onOctaveChange={setCurrentOctave}
@@ -238,15 +317,16 @@ function PianoRollPanel({
         ) : (
           <PercussiveGrid
             instrument={instrument}
-            notes={notes}
-            onNotesChange={onNotesChange}
+            notes={percussiveNotes}
+            onNoteAdd={handlePercussiveNoteAdd}
+            onNoteRemove={handlePercussiveNoteRemove}
             color={color}
           />
         )}
       </div>
       
       <div className="piano-roll-toolbar">
-        {mode === 'melodic' && (
+        {viewMode === 'melodic' && (
           <div className="octave-scroller">
             <button 
               className="octave-btn"
@@ -273,9 +353,9 @@ function PianoRollPanel({
         <button 
           className="clear-btn"
           onClick={handleClear}
-          disabled={notes.length === 0}
+          disabled={currentNotes.length === 0}
         >
-          Clear
+          Clear ({currentNotes.length})
         </button>
       </div>
       

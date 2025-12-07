@@ -21,6 +21,27 @@ const STORAGE_KEYS = {
   trackFx: 'algorave_track_fx'
 }
 
+// Migrate old trackGrid format (notes -> melodicNotes/percussiveNotes)
+function migrateTrackGrids(grids) {
+  if (!grids) return {}
+  
+  const migrated = {}
+  for (const [slot, grid] of Object.entries(grids)) {
+    if (grid.notes && !grid.melodicNotes && !grid.percussiveNotes) {
+      // Old format - migrate based on mode
+      migrated[slot] = {
+        ...grid,
+        melodicNotes: grid.mode === 'melodic' ? grid.notes : [],
+        percussiveNotes: grid.mode === 'percussive' ? grid.notes : [],
+      }
+      delete migrated[slot].notes
+    } else {
+      migrated[slot] = grid
+    }
+  }
+  return migrated
+}
+
 // Load saved state from localStorage
 function loadSavedState() {
   try {
@@ -29,11 +50,14 @@ function loadSavedState() {
     const savedTrackNames = localStorage.getItem(STORAGE_KEYS.trackNames)
     const savedTrackGrids = localStorage.getItem(STORAGE_KEYS.trackGrids)
     const savedTrackFx = localStorage.getItem(STORAGE_KEYS.trackFx)
+    
+    const trackGrids = savedTrackGrids ? migrateTrackGrids(JSON.parse(savedTrackGrids)) : {}
+    
     return {
       patterns: savedPatterns ? JSON.parse(savedPatterns) : {},
       tempo: savedTempo ? parseInt(savedTempo) : DEFAULT_SETTINGS.tempo,
       trackNames: savedTrackNames ? JSON.parse(savedTrackNames) : {},
-      trackGrids: savedTrackGrids ? JSON.parse(savedTrackGrids) : {},
+      trackGrids,
       trackFx: savedTrackFx ? JSON.parse(savedTrackFx) : {}
     }
   } catch (e) {
@@ -145,14 +169,7 @@ function AppContent() {
       
       return next
     })
-    
-    // Replay if currently playing
-    if (isPlaying) {
-      setTimeout(() => {
-        playAllPatterns(generatedPatterns, mutedChannels)
-      }, 0)
-    }
-  }, [generatedPatterns, trackGrids]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [generatedPatterns, trackGrids])
 
   // Initialize Strudel on mount
   useEffect(() => {
@@ -221,8 +238,16 @@ function AppContent() {
     }
   }, [])
 
-  // Don't auto-play on init - wait for user to press Play
-  // (Patterns are loaded from localStorage but not played until Play is pressed)
+  // Replay patterns when they change while playing
+  useEffect(() => {
+    if (isPlaying && Object.keys(generatedPatterns).length > 0) {
+      // Small delay to let state settle
+      const timer = setTimeout(() => {
+        playAllPatterns(generatedPatterns, mutedChannels)
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [generatedPatterns, isPlaying, mutedChannels, playAllPatterns])
 
   // Handle Play button
   const handlePlay = useCallback(() => {
@@ -255,10 +280,9 @@ function AppContent() {
     // Save to localStorage
     localStorage.setItem(STORAGE_KEYS.tempo, String(bpm))
     
-    // Set tempo via scheduler's cps property
-    const scheduler = window._strudelScheduler
-    if (scheduler) {
-      scheduler.cps = cps
+    // Set tempo via Strudel's setcps function (affects playing patterns immediately)
+    if (window.setcps) {
+      window.setcps(cps)
     }
   }, [])
 

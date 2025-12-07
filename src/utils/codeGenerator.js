@@ -5,16 +5,19 @@
 
 /**
  * Generate a Strudel pattern string from track grid data
- * @param {Object} trackGrid - { instrument, mode, notes: [{ step, note? }] }
+ * @param {Object} trackGrid - { instrument, mode, melodicNotes?, percussiveNotes? }
  * @param {Object} trackFx - { gain, lpf, room, delay, pan, distort, signals }
  * @returns {string|null} - Strudel pattern code or null if invalid
  */
 export function generatePattern(trackGrid, trackFx = {}) {
   if (!trackGrid) return null
   
-  const { instrument, mode, notes } = trackGrid
+  const { instrument, mode, melodicNotes = [], percussiveNotes = [] } = trackGrid
   
-  if (!instrument || !mode || !notes || notes.length === 0) {
+  // Use the appropriate notes based on active mode
+  const notes = mode === 'melodic' ? melodicNotes : percussiveNotes
+  
+  if (!instrument || !mode || notes.length === 0) {
     return null
   }
   

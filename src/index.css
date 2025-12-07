@@ -1876,6 +1876,59 @@ body {
   color: var(--gray-200);
 }
 
+/* Inline Mode Toggle (inside piano roll header) */
+.inline-mode-toggle {
+  display: flex;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  margin: 0 auto;
+}
+
+.inline-mode-toggle .mode-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  opacity: 0.5;
+}
+
+.inline-mode-toggle .mode-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 0.8;
+}
+
+.inline-mode-toggle .mode-btn.active {
+  background: var(--track-color, var(--lime-green));
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Active mode indicator in toolbar */
+.active-mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--gray-400);
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+}
+
+.active-mode-indicator .note-count {
+  font-weight: 600;
+  color: var(--track-color, var(--lime-green));
+}
+
 .piano-roll-content {
   flex: 1;
   overflow: hidden;
