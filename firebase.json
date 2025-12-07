@@ -13,17 +13,6 @@
       }
     ]
   },
-  "apphosting": {
-    "backendId": "algorave",
-    "rootDir": "/",
-    "ignore": [
-      "node_modules",
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "functions"
-    ]
-  },
   "firestore": {
     "database": "(default)",
     "location": "us-central1",
