@@ -6,15 +6,18 @@ A web-based live coding environment for music. Built on [Strudel](https://strude
 
 - **Vite + React** - fast dev server and build
 - **@strudel/web** - programmatic control over Strudel audio engine
-- **MassiveMusic-inspired design** - lime-to-orange gradient, draggable modals, 16-channel event stream
 
 ## Features
 
-- **16 Channel Event Stream** - Visual display of active patterns (d1-d16)
-- **Draggable Command Modal** - Write and execute Strudel patterns
-- **Sample Browser** - Draggable, collapsible panel with common samples
-- **Drag & Drop** - Drag samples into the command input
-- **Keyboard Shortcuts** - Quick access to common actions
+- **16-Channel Track System** - Visual grid with d1-d16 slots for patterns
+- **Piano Roll Editor** - Draw notes with melodic and percussive modes
+- **Track Effects** - Filter, reverb, delay, distortion per track
+- **Instrument Picker** - Synths and Dirt samples
+- **Sample Browser** - Browse and preview Dirt sample library
+- **Transport Controls** - Play/Stop, BPM, global mute
+- **Pattern Persistence** - Auto-saves patterns, names, grids, and FX to localStorage
+- **Live Updates** - Patterns update in real-time while playing
+- **Keyboard Shortcuts** - ⌘. to mute/unmute all
 
 ## Getting Started
 
