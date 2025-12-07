@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import TrackEffects from './TrackEffects'
-import { useToast } from './Toast'
+import TrackEffects, { DEFAULT_FX_STATE } from './TrackEffects'
+import InstrumentPicker from './InstrumentPicker'
+import ModeToggle from './ModeToggle'
+import PianoRollPanel from './PianoRollPanel'
 
 // Color palette for different channels (matching desktop app)
 const CHANNEL_COLORS = {
@@ -70,139 +72,24 @@ const StopIcon = () => (
   </svg>
 )
 
-// Track input component with drag/drop support
-function TrackInput({ 
-  slot, 
+// Code display component (read-only, shows generated pattern)
+function CodeDisplay({ 
   pattern, 
   color, 
   isActive, 
-  isMuted,
-  isInitialized,
-  onSubmit,
-  onMute,
-  onStop
+  isMuted
 }) {
-  const [inputValue, setInputValue] = useState(pattern || '')
-  const [isDragOver, setIsDragOver] = useState(false)
-  const [isFocused, setIsFocused] = useState(false)
-  const inputRef = useRef(null)
-  const toast = useToast()
-
-  // Sync input with external pattern changes
-  useEffect(() => {
-    if (!isFocused) {
-      setInputValue(pattern || '')
-    }
-  }, [pattern, isFocused])
-
-  const handleKeyDown = async (e) => {
-    // Shift+Enter = new line (if we switch to textarea)
-    // Enter alone = submit
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      const code = inputValue.trim()
-      
-      if (!code) return
-      if (!isInitialized) {
-        toast.showError('Strudel is still loading...')
-        return
-      }
-
-      // Check for hush command
-      if (code === 'hush' || code === 'hush()') {
-        if (window.hush) {
-          window.hush()
-        }
-        setInputValue('')
-        return
-      }
-
-      try {
-        // Validate the pattern syntax by trying to parse it
-        // (but don't play - App.jsx will handle playing all patterns)
-        eval(`(${code})`) // Just validate syntax
-        
-        // Update pattern - App.jsx will replay all patterns
-        onSubmit(slot, code)
-        toast.showSuccess(`Track ${slot.replace('d', '')} updated`)
-      } catch (err) {
-        console.error('Strudel error:', err)
-        toast.showError(err.message || 'Error processing pattern')
-      }
-    }
-    
-    if (e.key === 'Escape') {
-      setInputValue(pattern || '')
-      inputRef.current?.blur()
-    }
-  }
-
-  const handleDragOver = (e) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
-    setIsDragOver(true)
-  }
-
-  const handleDragLeave = () => {
-    setIsDragOver(false)
-  }
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    setIsDragOver(false)
-    
-    const sample = e.dataTransfer.getData('application/x-sample') || e.dataTransfer.getData('text/plain')
-    if (sample) {
-      const cursorPos = inputRef.current?.selectionStart ?? inputValue.length
-      const before = inputValue.slice(0, cursorPos)
-      const after = inputValue.slice(cursorPos)
-      setInputValue(`${before}${sample}${after}`)
-      inputRef.current?.focus()
-    }
-  }
-
-  const handleFocus = () => {
-    setIsFocused(true)
-  }
-
-  const handleBlur = () => {
-    setIsFocused(false)
-  }
-
-  const handleStop = (e) => {
-    e.stopPropagation()
-    onStop(slot)
-    setInputValue('')
-  }
-
   return (
-    <div className={`track-input-wrapper ${isDragOver ? 'drag-over' : ''}`}>
+    <div className="code-display-wrapper">
       <input
-        ref={inputRef}
         type="text"
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        placeholder={`s("bd sn") or note("c3 e3 g3").s("piano")`}
-        className={`track-input ${isActive ? 'active' : ''} ${isMuted ? 'muted' : ''}`}
+        value={pattern || ''}
+        readOnly
+        placeholder="Pattern will appear here..."
+        className={`code-display ${isActive ? 'active' : ''} ${isMuted ? 'muted' : ''}`}
         style={{ '--track-color': color }}
-        disabled={!isInitialized}
+        title={pattern || 'No pattern'}
       />
-      {isActive && (
-        <button
-          className="track-stop-btn"
-          onClick={handleStop}
-          title="Stop pattern"
-          aria-label="Stop pattern"
-        >
-          <StopIcon />
-        </button>
-      )}
     </div>
   )
 }
@@ -270,27 +157,85 @@ function TrackLabel({ slot, channelNum, customName, onNameChange, color }) {
   )
 }
 
-function EventStream({ patterns, onPatternUpdate, mutedChannels, onToggleMute, trackNames, onTrackNameUpdate, isInitialized }) {
+function EventStream({ 
+  patterns, 
+  onPatternUpdate, 
+  mutedChannels, 
+  onToggleMute, 
+  trackNames, 
+  onTrackNameUpdate, 
+  trackGrids,
+  onTrackGridUpdate,
+  trackFx,
+  onTrackFxUpdate,
+  isInitialized 
+}) {
   const containerRef = useRef(null)
   // Track multiple open FX panels: { "d1": { x, y }, "d3": { x, y }, ... }
   const [openFxPanels, setOpenFxPanels] = useState({})
+  // Track which slot has the instrument picker open
+  const [instrumentPickerSlot, setInstrumentPickerSlot] = useState(null)
+  // Track which slot has the piano roll open (only one at a time)
+  const [pianoRollSlot, setPianoRollSlot] = useState(null)
+  // Refs for instrument buttons to anchor the picker
+  const instrumentButtonRefs = useRef({})
 
-  // Handle pattern submission from track input
-  const handlePatternSubmit = useCallback((slot, code) => {
-    onPatternUpdate(slot, code)
-  }, [onPatternUpdate])
-
-  // Handle stopping a pattern
-  const handleStopPattern = useCallback((slot) => {
-    // Update pattern to null - App.jsx will replay all remaining patterns
-    onPatternUpdate(slot, null)
+  // Handle clearing a track (reset everything)
+  const handleClearTrack = useCallback((slot) => {
+    // Clear grid state
+    onTrackGridUpdate(slot, null)
+    // Clear FX state
+    onTrackFxUpdate(slot, null)
+    // Close piano roll if it was open for this track
+    if (pianoRollSlot === slot) {
+      setPianoRollSlot(null)
+    }
     // Close FX panel if it was open for this track
     setOpenFxPanels(prev => {
       const next = { ...prev }
       delete next[slot]
       return next
     })
-  }, [onPatternUpdate])
+  }, [onTrackGridUpdate, onTrackFxUpdate, pianoRollSlot])
+
+  // Handle instrument selection
+  const handleInstrumentSelect = useCallback((slot, instrument) => {
+    const existingGrid = trackGrids[slot] || {}
+    onTrackGridUpdate(slot, {
+      ...existingGrid,
+      instrument,
+      // Keep existing notes if any
+    })
+    setInstrumentPickerSlot(null)
+    // Auto-open piano roll if mode is already set
+    if (existingGrid.mode) {
+      setPianoRollSlot(slot)
+    }
+  }, [onTrackGridUpdate, trackGrids])
+
+  // Handle mode change
+  const handleModeChange = useCallback((slot, mode) => {
+    onTrackGridUpdate(slot, {
+      ...trackGrids[slot],
+      mode,
+      notes: [] // Clear notes on mode change
+    })
+    // Auto-open piano roll when mode is set
+    setPianoRollSlot(slot)
+  }, [onTrackGridUpdate, trackGrids])
+
+  // Handle notes change from piano roll
+  const handleNotesChange = useCallback((slot, notes) => {
+    onTrackGridUpdate(slot, {
+      ...trackGrids[slot],
+      notes
+    })
+  }, [onTrackGridUpdate, trackGrids])
+
+  // Open piano roll (closes any existing one)
+  const handleOpenPianoRoll = useCallback((slot) => {
+    setPianoRollSlot(slot)
+  }, [])
 
   // Handle FX button click - toggle panel for this track
   const handleFxClick = useCallback((e, slot) => {
@@ -336,11 +281,6 @@ function EventStream({ patterns, onPatternUpdate, mutedChannels, onToggleMute, t
     })
   }, [])
 
-  // Handle effect change from panel
-  const handleEffectChange = useCallback((slot, newPattern) => {
-    onPatternUpdate(slot, newPattern)
-  }, [onPatternUpdate])
-
   // Close specific FX panel
   const handleCloseFxPanel = useCallback((slot) => {
     setOpenFxPanels(prev => {
@@ -364,6 +304,9 @@ function EventStream({ patterns, onPatternUpdate, mutedChannels, onToggleMute, t
         const isMuted = mutedChannels.has(slot)
         const isFxOpen = !!openFxPanels[slot]
 
+        const trackGrid = trackGrids?.[slot] || {}
+        const hasInstrument = !!trackGrid.instrument
+
         return (
           <div
             key={slot}
@@ -378,16 +321,40 @@ function EventStream({ patterns, onPatternUpdate, mutedChannels, onToggleMute, t
               color={color}
             />
             
-            <TrackInput
-              slot={slot}
+            {/* Instrument Button */}
+            <button
+              ref={el => instrumentButtonRefs.current[slot] = el}
+              className={`instrument-btn ${hasInstrument ? 'has-instrument' : ''}`}
+              onClick={() => setInstrumentPickerSlot(instrumentPickerSlot === slot ? null : slot)}
+              title={hasInstrument ? `Instrument: ${trackGrid.instrument}` : 'Select instrument'}
+              style={{ '--btn-color': color }}
+            >
+              {hasInstrument ? trackGrid.instrument : '+'}
+            </button>
+
+            {/* Mode Toggle */}
+            <ModeToggle
+              mode={trackGrid.mode}
+              onChange={(mode) => handleModeChange(slot, mode)}
+              disabled={!hasInstrument}
+            />
+            
+            {/* Grid Button - opens piano roll */}
+            <button
+              className={`grid-btn ${pianoRollSlot === slot ? 'active' : ''}`}
+              onClick={() => handleOpenPianoRoll(slot)}
+              disabled={!hasInstrument || !trackGrid.mode}
+              title={!trackGrid.mode ? 'Select mode first' : 'Open grid'}
+              style={{ '--btn-color': color }}
+            >
+              ▦
+            </button>
+            
+            <CodeDisplay
               pattern={pattern}
               color={color}
               isActive={isActive}
               isMuted={isMuted}
-              isInitialized={isInitialized}
-              onSubmit={handlePatternSubmit}
-              onMute={() => onToggleMute(slot)}
-              onStop={handleStopPattern}
             />
 
             {isActive && (
@@ -404,17 +371,29 @@ function EventStream({ patterns, onPatternUpdate, mutedChannels, onToggleMute, t
               </button>
             )}
             
-            {/* FX Button - always visible, disabled when no pattern */}
+            {/* FX Button - enabled when track has content */}
             <button
               className={`channel-fx-btn ${isFxOpen ? 'active' : ''} ${!isActive ? 'disabled' : ''}`}
               onClick={(e) => isActive && handleFxClick(e, slot)}
               disabled={!isActive}
-              title={isActive ? 'Effects' : 'Add a pattern first'}
+              title={isActive ? 'Effects' : 'Add notes first'}
               aria-label="Effects"
               style={{ '--btn-color': color }}
             >
               <FxIcon />
             </button>
+            
+            {/* Clear Track Button - only visible when track has content */}
+            {hasInstrument && (
+              <button
+                className="clear-track-btn"
+                onClick={() => handleClearTrack(slot)}
+                title="Reset track"
+                aria-label="Reset track"
+              >
+                ↺
+              </button>
+            )}
           </div>
         )
       })}
@@ -431,12 +410,37 @@ function EventStream({ patterns, onPatternUpdate, mutedChannels, onToggleMute, t
               trackName={trackNames ? trackNames[slot] : undefined}
               color={CHANNEL_COLORS[trackNum - 1] || '#ffffff'}
               position={position}
-              pattern={patterns[slot]}
+              fxState={trackFx?.[slot] || DEFAULT_FX_STATE}
+              onFxChange={(fx) => onTrackFxUpdate(slot, fx)}
               onClose={() => handleCloseFxPanel(slot)}
-              onEffectChange={(newPattern) => handleEffectChange(slot, newPattern)}
             />
           )
         })}
+      
+      {/* Instrument Picker - only one can be open at a time */}
+      {instrumentPickerSlot && (
+        <InstrumentPicker
+          isOpen={true}
+          onSelect={(instrument) => handleInstrumentSelect(instrumentPickerSlot, instrument)}
+          onClose={() => setInstrumentPickerSlot(null)}
+          anchorRef={{ current: instrumentButtonRefs.current[instrumentPickerSlot] }}
+          currentInstrument={trackGrids?.[instrumentPickerSlot]?.instrument}
+        />
+      )}
+      
+      {/* Piano Roll Panel - only one can be open at a time */}
+      {pianoRollSlot && trackGrids?.[pianoRollSlot] && (
+        <PianoRollPanel
+          trackNumber={getTrackNumber(pianoRollSlot)}
+          trackName={trackNames?.[pianoRollSlot]}
+          color={CHANNEL_COLORS[getTrackNumber(pianoRollSlot) - 1] || '#ffffff'}
+          mode={trackGrids[pianoRollSlot].mode}
+          instrument={trackGrids[pianoRollSlot].instrument}
+          notes={trackGrids[pianoRollSlot].notes || []}
+          onNotesChange={(notes) => handleNotesChange(pianoRollSlot, notes)}
+          onClose={() => setPianoRollSlot(null)}
+        />
+      )}
     </div>
   )
 }

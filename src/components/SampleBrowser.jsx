@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 // Common Strudel samples (since we can't scan filesystem in web)
-const DEFAULT_SAMPLES = [
+export const DEFAULT_SAMPLES = [
   'bd', 'sd', 'hh', 'oh', 'cp', 'cb', 'cr', 'rs',
   'bass', 'bass3', 'casio', 'piano', 'superpiano',
   'sawtooth', 'square', 'triangle', 'sine',
@@ -12,7 +12,7 @@ const DEFAULT_SAMPLES = [
   'birds', 'nature', 'breaks', 'house'
 ]
 
-function SampleBrowser() {
+function SampleBrowser({ isOpen, onClose }) {
   const [samples] = useState(DEFAULT_SAMPLES)
   const [filter, setFilter] = useState('')
   const [position, setPosition] = useState({ x: 20, y: 80 }) // Will be adjusted on mount
@@ -132,6 +132,9 @@ function SampleBrowser() {
     setZIndex(Date.now() % 10000 + 100)
   }, [])
 
+  // Don't render if not open
+  if (!isOpen) return null
+
   return (
     <div
       ref={modalRef}
@@ -156,6 +159,16 @@ function SampleBrowser() {
         <div className="modal-header-actions">
           <span className="sample-count">{samples.length}</span>
           <span className="collapse-indicator">{isCollapsed ? '▼' : '▲'}</span>
+          <button 
+            className="sample-browser-close" 
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            aria-label="Close sample browser"
+          >
+            ×
+          </button>
         </div>
       </div>
       {!isCollapsed && (
@@ -173,12 +186,6 @@ function SampleBrowser() {
               <div
                 key={sample}
                 className="sample-item"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('text/plain', sample)
-                  e.dataTransfer.setData('application/x-sample', sample)
-                  e.dataTransfer.effectAllowed = 'copy'
-                }}
               >
                 {sample}
               </div>

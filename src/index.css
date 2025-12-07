@@ -538,6 +538,68 @@ body {
   transform: scale(1.1);
 }
 
+/* Code Display - Read-only pattern display */
+.code-display-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  position: relative;
+  min-width: 0;
+}
+
+.code-display {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--gray-600);
+  background: rgba(0, 0, 0, 0.3);
+  padding: var(--space-sm) var(--space-md);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  outline: none;
+  min-width: 0;
+  cursor: default;
+  user-select: text;
+}
+
+.code-display::placeholder {
+  color: var(--gray-600);
+  font-size: 0.75rem;
+}
+
+.code-display.active {
+  color: var(--gray-300);
+  background: rgba(0, 0, 0, 0.4);
+  border-color: var(--track-color, rgba(255, 255, 255, 0.2));
+}
+
+.code-display.muted {
+  opacity: 0.5;
+}
+
+/* Clear Track Button */
+.clear-track-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  color: var(--gray-400);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.clear-track-btn:hover {
+  background: rgba(255, 80, 80, 0.2);
+  border-color: rgba(255, 100, 100, 0.4);
+  color: rgba(255, 150, 150, 0.9);
+}
+
 .channel-edit-input {
   flex: 1;
   font-family: var(--font-mono);
@@ -1475,6 +1537,593 @@ body {
 .channel-fx-btn.disabled {
   opacity: 0.25;
   cursor: not-allowed;
+}
+
+/* ==========================================
+   Samples Toggle Button (Header)
+   ========================================== */
+
+.samples-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--gray-400);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  margin-left: var(--space-sm);
+}
+
+.samples-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--gray-300);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.samples-toggle-btn.active {
+  background: rgba(196, 227, 76, 0.15);
+  border-color: rgba(196, 227, 76, 0.3);
+  color: var(--lime-green);
+}
+
+/* Sample Browser Close Button */
+.sample-browser-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: none;
+  color: var(--gray-500);
+  font-size: 1.25rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+  margin-left: var(--space-xs);
+}
+
+.sample-browser-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--gray-200);
+}
+
+/* ==========================================
+   Instrument Picker Dropdown
+   ========================================== */
+
+.instrument-picker {
+  position: fixed;
+  z-index: 2000;
+  background: rgba(10, 10, 8, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  width: 200px;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.instrument-picker-search {
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-light);
+  font-size: 0.85rem;
+  font-family: var(--font-primary);
+  outline: none;
+}
+
+.instrument-picker-search:focus {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.instrument-picker-search::placeholder {
+  color: var(--gray-500);
+}
+
+.instrument-picker-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xs);
+}
+
+.instrument-picker-item {
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--gray-300);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.instrument-picker-item:hover {
+  background: rgba(196, 227, 76, 0.15);
+  color: var(--lime-green);
+}
+
+.instrument-picker-item.selected {
+  background: rgba(196, 227, 76, 0.2);
+  color: var(--lime-green);
+}
+
+.instrument-picker-empty {
+  padding: var(--space-md);
+  text-align: center;
+  color: var(--gray-500);
+  font-size: 0.8rem;
+}
+
+/* ==========================================
+   Instrument Button (Track Row)
+   ========================================== */
+
+.instrument-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  max-width: 100px;
+  height: 32px;
+  padding: 0 var(--space-sm);
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  color: var(--gray-400);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.instrument-btn:hover {
+  background: rgba(0, 0, 0, 0.6);
+  border-color: var(--btn-color, rgba(255, 255, 255, 0.4));
+  color: var(--gray-200);
+}
+
+.instrument-btn.has-instrument {
+  border-color: var(--btn-color, rgba(255, 255, 255, 0.4));
+  color: var(--btn-color, var(--gray-200));
+}
+
+/* ==========================================
+   Mode Toggle Button (Track Row)
+   ========================================== */
+
+.track-mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.track-mode-toggle:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.track-mode-toggle.unset {
+  opacity: 0.5;
+  color: var(--gray-400);
+}
+
+.track-mode-toggle.melodic {
+  border-color: rgba(100, 150, 255, 0.5);
+  background: rgba(100, 150, 255, 0.15);
+}
+
+.track-mode-toggle.percussive {
+  border-color: rgba(255, 150, 100, 0.5);
+  background: rgba(255, 150, 100, 0.15);
+}
+
+.track-mode-toggle:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.track-mode-toggle.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   Grid Button (Track Row)
+   ========================================== */
+
+.grid-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  color: var(--gray-400);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.grid-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.6);
+  border-color: var(--btn-color, rgba(255, 255, 255, 0.4));
+  color: var(--gray-200);
+}
+
+.grid-btn.active {
+  background: rgba(196, 227, 76, 0.2);
+  border-color: var(--lime-green);
+  color: var(--lime-green);
+}
+
+.grid-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ==========================================
+   Piano Roll Panel
+   ========================================== */
+
+:root {
+  --piano-roll-width: 40vw;
+  --piano-roll-min-width: 320px;
+  --piano-roll-max-width: 600px;
+  --grid-cell-size: 28px;
+  --grid-cell-gap: 1px;
+  --note-label-width: 48px;
+  --beat-line-color: rgba(255, 255, 255, 0.3);
+  --half-beat-line-color: rgba(255, 255, 255, 0.1);
+  --white-key-bg: rgba(40, 40, 38, 0.95);
+  --black-key-bg: rgba(20, 20, 18, 0.95);
+}
+
+.piano-roll-panel {
+  position: fixed;
+  top: 48px;
+  right: 0;
+  bottom: 0;
+  width: var(--piano-roll-width);
+  min-width: var(--piano-roll-min-width);
+  max-width: var(--piano-roll-max-width);
+  background: rgba(10, 10, 8, 0.98);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  z-index: 1500;
+  transform: translateX(100%);
+  transition: transform 0.2s ease-out;
+}
+
+.piano-roll-panel.open {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piano-roll-panel {
+    transition: none;
+  }
+}
+
+.piano-roll-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 44px;
+}
+
+.piano-roll-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--track-color, var(--gray-300));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.piano-roll-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: var(--gray-500);
+  font-size: 1.5rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.piano-roll-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--gray-200);
+}
+
+.piano-roll-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================
+   Piano Roll Grid
+   ========================================== */
+
+.piano-roll-grid {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: var(--space-sm);
+}
+
+.piano-roll-grid.melodic {
+  /* Allow vertical scrolling for note rows */
+}
+
+.piano-roll-grid.percussive {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-lg) var(--space-sm);
+}
+
+.grid-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--grid-cell-gap);
+  min-height: var(--grid-cell-size);
+}
+
+.grid-row.white-key {
+  background: var(--white-key-bg);
+}
+
+.grid-row.black-key {
+  background: var(--black-key-bg);
+}
+
+.note-label {
+  width: var(--note-label-width);
+  min-width: var(--note-label-width);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--gray-400);
+  background: rgba(0, 0, 0, 0.3);
+  user-select: none;
+}
+
+.note-label.black-key {
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--gray-500);
+}
+
+.note-label.drum-label {
+  font-size: 0.7rem;
+  color: var(--gray-300);
+  text-transform: uppercase;
+}
+
+.grid-cell {
+  width: var(--grid-cell-size);
+  min-width: var(--grid-cell-size);
+  height: var(--grid-cell-size);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+  position: relative;
+}
+
+.grid-cell:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.grid-cell:focus {
+  outline: 2px solid var(--track-color, var(--lime-green));
+  outline-offset: -2px;
+}
+
+.grid-cell.active {
+  background: var(--track-color, var(--lime-green));
+  border-color: var(--track-color, var(--lime-green));
+  border-radius: 4px;
+  animation: note-pop 0.1s ease-out;
+}
+
+@keyframes note-pop {
+  0% { transform: scale(0.8); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grid-cell.active {
+    animation: none;
+  }
+}
+
+/* Beat markers */
+.grid-cell.beat-marker.quarter {
+  border-left: 2px solid var(--beat-line-color);
+}
+
+.grid-cell.beat-marker.eighth {
+  border-left: 1px solid var(--half-beat-line-color);
+}
+
+/* Step numbers for percussive mode */
+.step-numbers {
+  display: flex;
+  align-items: center;
+  gap: var(--grid-cell-gap);
+  margin-top: var(--space-sm);
+}
+
+.step-number {
+  width: var(--grid-cell-size);
+  min-width: var(--grid-cell-size);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--gray-500);
+  user-select: none;
+}
+
+/* ==========================================
+   Piano Roll Toolbar
+   ========================================== */
+
+.piano-roll-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  min-height: 44px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.octave-scroller {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.octave-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--gray-400);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.octave-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--gray-200);
+}
+
+.octave-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.octave-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--gray-400);
+  min-width: 48px;
+  text-align: center;
+}
+
+.clear-btn {
+  padding: var(--space-xs) var(--space-sm);
+  background: rgba(255, 80, 80, 0.1);
+  border: 1px solid rgba(255, 80, 80, 0.2);
+  border-radius: var(--radius-sm);
+  color: rgba(255, 120, 120, 0.9);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.clear-btn:hover:not(:disabled) {
+  background: rgba(255, 80, 80, 0.2);
+  border-color: rgba(255, 80, 80, 0.4);
+  color: #fff;
+}
+
+.clear-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .piano-roll-panel {
+    width: 100vw;
+    max-width: 100vw;
+  }
+  
+  .grid-cell {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+  
+  .step-number {
+    width: 44px;
+    min-width: 44px;
+  }
 }
 
 /* Responsive */

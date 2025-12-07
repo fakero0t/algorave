@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import EventStream from './components/EventStream'
 import SampleBrowser from './components/SampleBrowser'
 import Settings from './components/Settings'
 import { ToastProvider } from './components/Toast'
+import { generatePattern } from './utils/codeGenerator'
 
 // Default settings
 const DEFAULT_SETTINGS = {
@@ -15,7 +16,9 @@ const DEFAULT_SETTINGS = {
 const STORAGE_KEYS = {
   patterns: 'algorave_patterns',
   tempo: 'algorave_tempo',
-  trackNames: 'algorave_track_names'
+  trackNames: 'algorave_track_names',
+  trackGrids: 'algorave_track_grids',
+  trackFx: 'algorave_track_fx'
 }
 
 // Load saved state from localStorage
@@ -24,14 +27,18 @@ function loadSavedState() {
     const savedPatterns = localStorage.getItem(STORAGE_KEYS.patterns)
     const savedTempo = localStorage.getItem(STORAGE_KEYS.tempo)
     const savedTrackNames = localStorage.getItem(STORAGE_KEYS.trackNames)
+    const savedTrackGrids = localStorage.getItem(STORAGE_KEYS.trackGrids)
+    const savedTrackFx = localStorage.getItem(STORAGE_KEYS.trackFx)
     return {
       patterns: savedPatterns ? JSON.parse(savedPatterns) : {},
       tempo: savedTempo ? parseInt(savedTempo) : DEFAULT_SETTINGS.tempo,
-      trackNames: savedTrackNames ? JSON.parse(savedTrackNames) : {}
+      trackNames: savedTrackNames ? JSON.parse(savedTrackNames) : {},
+      trackGrids: savedTrackGrids ? JSON.parse(savedTrackGrids) : {},
+      trackFx: savedTrackFx ? JSON.parse(savedTrackFx) : {}
     }
   } catch (e) {
     console.error('Error loading saved state:', e)
-    return { patterns: {}, tempo: DEFAULT_SETTINGS.tempo, trackNames: {} }
+    return { patterns: {}, tempo: DEFAULT_SETTINGS.tempo, trackNames: {}, trackGrids: {}, trackFx: {} }
   }
 }
 
@@ -39,6 +46,9 @@ function AppContent() {
   const savedState = loadSavedState()
   const [patterns, setPatterns] = useState(savedState.patterns)
   const [trackNames, setTrackNames] = useState(savedState.trackNames)
+  const [trackGrids, setTrackGrids] = useState(savedState.trackGrids)
+  const [trackFx, setTrackFx] = useState(savedState.trackFx)
+  const [sampleBrowserOpen, setSampleBrowserOpen] = useState(false)
   const [mutedChannels, setMutedChannels] = useState(new Set())
   const [isPlaying, setIsPlaying] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -63,6 +73,86 @@ function AppContent() {
       return next
     })
   }, [])
+
+  // Handle track grid update (instrument, mode, notes)
+  const handleTrackGridUpdate = useCallback((slot, gridData) => {
+    setTrackGrids(prev => {
+      const next = { ...prev }
+      if (gridData === null) {
+        delete next[slot]
+      } else {
+        next[slot] = gridData
+      }
+      localStorage.setItem(STORAGE_KEYS.trackGrids, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  // Handle track FX update
+  const handleTrackFxUpdate = useCallback((slot, fxData) => {
+    setTrackFx(prev => {
+      const next = { ...prev }
+      if (fxData === null) {
+        delete next[slot]
+      } else {
+        next[slot] = fxData
+      }
+      localStorage.setItem(STORAGE_KEYS.trackFx, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  // Generate patterns from track grids
+  const generatedPatterns = useMemo(() => {
+    const newPatterns = {}
+    Object.entries(trackGrids).forEach(([slot, grid]) => {
+      const fx = trackFx[slot] || {}
+      const code = generatePattern(grid, fx)
+      if (code) {
+        newPatterns[slot] = code
+      }
+    })
+    return newPatterns
+  }, [trackGrids, trackFx])
+
+  // Sync generated patterns to state and replay if playing
+  useEffect(() => {
+    setPatterns(prev => {
+      const next = { ...prev }
+      
+      // Remove patterns for slots that no longer have trackGrids
+      // (track was cleared/reset)
+      Object.keys(next).forEach(slot => {
+        if (!trackGrids[slot]) {
+          delete next[slot]
+        }
+      })
+      
+      // Update patterns from grids
+      Object.keys(generatedPatterns).forEach(slot => {
+        next[slot] = generatedPatterns[slot]
+      })
+      
+      // Remove patterns for slots with grids but no notes
+      Object.keys(trackGrids).forEach(slot => {
+        if (!generatedPatterns[slot]) {
+          delete next[slot]
+        }
+      })
+      
+      // Save to localStorage
+      localStorage.setItem(STORAGE_KEYS.patterns, JSON.stringify(next))
+      
+      return next
+    })
+    
+    // Replay if currently playing
+    if (isPlaying) {
+      setTimeout(() => {
+        playAllPatterns(generatedPatterns, mutedChannels)
+      }, 0)
+    }
+  }, [generatedPatterns, trackGrids]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize Strudel on mount
   useEffect(() => {
@@ -317,6 +407,12 @@ function AppContent() {
           <span className={`status-badge ${isInitialized ? 'ready' : 'loading'}`}>
             {isInitialized ? '● Ready' : '○ Loading...'}
           </span>
+          <button 
+            className={`samples-toggle-btn ${sampleBrowserOpen ? 'active' : ''}`}
+            onClick={() => setSampleBrowserOpen(!sampleBrowserOpen)}
+          >
+            Samples {sampleBrowserOpen ? '▼' : '▶'}
+          </button>
         </div>
         <div className="header-center">
           <div className="transport-controls">
@@ -391,10 +487,17 @@ function AppContent() {
         onToggleMute={handleToggleMute}
         trackNames={trackNames}
         onTrackNameUpdate={handleTrackNameUpdate}
+        trackGrids={trackGrids}
+        onTrackGridUpdate={handleTrackGridUpdate}
+        trackFx={trackFx}
+        onTrackFxUpdate={handleTrackFxUpdate}
         isInitialized={isInitialized}
       />
       
-      <SampleBrowser />
+      <SampleBrowser 
+        isOpen={sampleBrowserOpen}
+        onClose={() => setSampleBrowserOpen(false)}
+      />
       
       {showSettings && (
         <Settings 
