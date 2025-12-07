@@ -137,13 +137,15 @@ function buildSignalCode(signal) {
 }
 
 function TrackEffects({ 
-  trackNumber, 
+  trackNumber,
+  trackName,
   color, 
   position, 
   pattern, 
   onClose, 
   onEffectChange 
 }) {
+  const displayName = trackName || `Track ${trackNumber}`
   const panelRef = useRef(null)
   const headerRef = useRef(null)
   const isDragging = useRef(false)
@@ -270,11 +272,26 @@ function TrackEffects({
   }, [])
 
   const handleMouseMove = useCallback((e) => {
-    if (!isDragging.current) return
-    setPanelPosition({
-      x: e.clientX - dragOffset.current.x,
-      y: e.clientY - dragOffset.current.y
-    })
+    if (!isDragging.current || !panelRef.current) return
+    
+    const panelRect = panelRef.current.getBoundingClientRect()
+    
+    // Get the event-stream bounds (track list view)
+    const eventStream = document.querySelector('.event-stream')
+    const bounds = eventStream?.getBoundingClientRect() || { 
+      left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight 
+    }
+    
+    // Constrain to event-stream bounds
+    const minX = bounds.left
+    const maxX = bounds.right - panelRect.width
+    const minY = bounds.top
+    const maxY = bounds.bottom - panelRect.height
+    
+    const newX = Math.max(minX, Math.min(maxX, e.clientX - dragOffset.current.x))
+    const newY = Math.max(minY, Math.min(maxY, e.clientY - dragOffset.current.y))
+    
+    setPanelPosition({ x: newX, y: newY })
   }, [])
 
   const handleMouseUp = useCallback(() => {
@@ -283,14 +300,19 @@ function TrackEffects({
     document.body.style.userSelect = ''
   }, [])
 
-  // Escape key to close
+  // Escape key to close - only if this panel has focus/was last interacted with
+  const [hasFocus, setHasFocus] = useState(false)
+  
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose()
+      // Only close on Escape if this panel is focused
+      if (e.key === 'Escape' && hasFocus) {
+        onClose()
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [onClose, hasFocus])
 
   // Mouse event listeners for dragging
   useEffect(() => {
@@ -302,6 +324,14 @@ function TrackEffects({
     }
   }, [handleMouseMove, handleMouseUp])
 
+  // Z-index for stacking
+  const [zIndex, setZIndex] = useState(1000)
+  
+  const bringToFront = useCallback(() => {
+    setZIndex(Date.now() % 10000 + 1000)
+    setHasFocus(true)
+  }, [])
+
   return (
     <div
       ref={panelRef}
@@ -309,15 +339,20 @@ function TrackEffects({
       style={{
         left: panelPosition.x,
         top: panelPosition.y,
+        zIndex,
         '--track-color': color
       }}
+      onMouseDown={bringToFront}
+      onFocus={() => setHasFocus(true)}
+      onBlur={() => setHasFocus(false)}
+      tabIndex={-1}
     >
       <div 
         ref={headerRef}
         className="track-effects-header"
         onMouseDown={handleMouseDown}
       >
-        <span className="track-effects-title">Track {trackNumber} Effects</span>
+        <span className="track-effects-title">{displayName} Effects</span>
         <div className="track-effects-actions">
           <button 
             className="track-effects-reset" 

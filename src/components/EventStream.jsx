@@ -207,79 +207,147 @@ function TrackInput({
   )
 }
 
-function EventStream({ patterns, onPatternUpdate, onHush, isInitialized }) {
-  const containerRef = useRef(null)
-  const [mutedChannels, setMutedChannels] = useState(new Set())
-  const [fxPanelTrack, setFxPanelTrack] = useState(null) // slot like "d1" or null
-  const [fxPanelPosition, setFxPanelPosition] = useState({ x: 0, y: 0 })
+// Editable track label component
+function TrackLabel({ slot, channelNum, customName, onNameChange, color }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const inputRef = useRef(null)
 
-  // Toggle mute for a channel
-  // Note: Mute is currently visual only - the pattern still plays
-  // TODO: Implement proper mute by excluding from stack
-  const handleToggleMute = useCallback((slot, pattern) => {
-    setMutedChannels(prev => {
-      const next = new Set(prev)
-      if (next.has(slot)) {
-        next.delete(slot)
-      } else {
-        next.add(slot)
-      }
-      return next
-    })
-  }, [])
+  const displayName = customName || `Track ${channelNum}`
+
+  const handleDoubleClick = () => {
+    setEditValue(customName || '')
+    setIsEditing(true)
+  }
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [isEditing])
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      onNameChange(slot, editValue)
+      setIsEditing(false)
+    }
+    if (e.key === 'Escape') {
+      setIsEditing(false)
+    }
+  }
+
+  const handleBlur = () => {
+    onNameChange(slot, editValue)
+    setIsEditing(false)
+  }
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+        className="channel-label-input"
+        style={{ '--channel-color': color }}
+        placeholder={`Track ${channelNum}`}
+      />
+    )
+  }
+
+  return (
+    <span 
+      className="channel-label" 
+      style={{ '--channel-color': color }}
+      onDoubleClick={handleDoubleClick}
+      title="Double-click to rename"
+    >
+      {displayName}
+    </span>
+  )
+}
+
+function EventStream({ patterns, onPatternUpdate, mutedChannels, onToggleMute, trackNames, onTrackNameUpdate, isInitialized }) {
+  const containerRef = useRef(null)
+  // Track multiple open FX panels: { "d1": { x, y }, "d3": { x, y }, ... }
+  const [openFxPanels, setOpenFxPanels] = useState({})
 
   // Handle pattern submission from track input
   const handlePatternSubmit = useCallback((slot, code) => {
     onPatternUpdate(slot, code)
-    // Clear muted state when pattern is updated
-    setMutedChannels(prev => {
-      const next = new Set(prev)
-      next.delete(slot)
-      return next
-    })
   }, [onPatternUpdate])
 
   // Handle stopping a pattern
   const handleStopPattern = useCallback((slot) => {
     // Update pattern to null - App.jsx will replay all remaining patterns
     onPatternUpdate(slot, null)
-    setMutedChannels(prev => {
-      const next = new Set(prev)
-      next.delete(slot)
+    // Close FX panel if it was open for this track
+    setOpenFxPanels(prev => {
+      const next = { ...prev }
+      delete next[slot]
       return next
     })
-    // Close FX panel if it was open for this track
-    if (fxPanelTrack === slot) {
-      setFxPanelTrack(null)
-    }
-  }, [onPatternUpdate, fxPanelTrack])
+  }, [onPatternUpdate])
 
-  // Handle FX button click
+  // Handle FX button click - toggle panel for this track
   const handleFxClick = useCallback((e, slot) => {
     e.stopPropagation()
     
-    if (fxPanelTrack === slot) {
-      // Close if clicking same track's FX button
-      setFxPanelTrack(null)
-    } else {
-      // Open panel for this track
-      const rect = e.currentTarget.getBoundingClientRect()
-      setFxPanelPosition({
-        x: rect.right + 8,
-        y: rect.bottom + 8
-      })
-      setFxPanelTrack(slot)
-    }
-  }, [fxPanelTrack])
+    // Capture rect BEFORE setState (event gets recycled)
+    const buttonRect = e.currentTarget?.getBoundingClientRect()
+    
+    // Get viewport/container bounds
+    const eventStream = containerRef.current
+    const containerRect = eventStream?.getBoundingClientRect()
+    
+    setOpenFxPanels(prev => {
+      const next = { ...prev }
+      if (next[slot]) {
+        // Close if already open
+        delete next[slot]
+      } else if (buttonRect && containerRect) {
+        // Open panel for this track
+        // Offset each new panel slightly to prevent overlap
+        const offset = Object.keys(next).length * 30
+        
+        // Estimate panel size (width ~300, height ~350)
+        const panelWidth = 300
+        const panelHeight = 350
+        
+        // Calculate position, ensuring it stays within viewport
+        let x = buttonRect.right + 8 + offset
+        let y = buttonRect.top + offset
+        
+        // Clamp to stay within container bounds
+        const maxX = containerRect.right - panelWidth - 10
+        const maxY = containerRect.bottom - panelHeight - 10
+        const minX = containerRect.left + 10
+        const minY = containerRect.top + 10
+        
+        x = Math.max(minX, Math.min(maxX, x))
+        y = Math.max(minY, Math.min(maxY, y))
+        
+        next[slot] = { x, y }
+      }
+      return next
+    })
+  }, [])
 
   // Handle effect change from panel
   const handleEffectChange = useCallback((slot, newPattern) => {
     onPatternUpdate(slot, newPattern)
   }, [onPatternUpdate])
 
-  // Close FX panel
-  const handleCloseFxPanel = useCallback(() => {
-    setFxPanelTrack(null)
+  // Close specific FX panel
+  const handleCloseFxPanel = useCallback((slot) => {
+    setOpenFxPanels(prev => {
+      const next = { ...prev }
+      delete next[slot]
+      return next
+    })
   }, [])
 
   // Get track number from slot
@@ -294,7 +362,7 @@ function EventStream({ patterns, onPatternUpdate, onHush, isInitialized }) {
         const color = CHANNEL_COLORS[i]
         const isActive = !!pattern
         const isMuted = mutedChannels.has(slot)
-        const isFxOpen = fxPanelTrack === slot
+        const isFxOpen = !!openFxPanels[slot]
 
         return (
           <div
@@ -302,7 +370,13 @@ function EventStream({ patterns, onPatternUpdate, onHush, isInitialized }) {
             className={`channel-row ${isActive ? 'active' : ''} ${isMuted ? 'muted' : ''}`}
             style={{ '--channel-color': color }}
           >
-            <span className="channel-label">Track {channelNum}</span>
+            <TrackLabel
+              slot={slot}
+              channelNum={channelNum}
+              customName={trackNames?.[slot]}
+              onNameChange={onTrackNameUpdate}
+              color={color}
+            />
             
             <TrackInput
               slot={slot}
@@ -312,7 +386,7 @@ function EventStream({ patterns, onPatternUpdate, onHush, isInitialized }) {
               isMuted={isMuted}
               isInitialized={isInitialized}
               onSubmit={handlePatternSubmit}
-              onMute={() => handleToggleMute(slot, pattern)}
+              onMute={() => onToggleMute(slot)}
               onStop={handleStopPattern}
             />
 
@@ -321,7 +395,7 @@ function EventStream({ patterns, onPatternUpdate, onHush, isInitialized }) {
                 className={`channel-mute-btn ${isMuted ? 'muted' : ''}`}
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleToggleMute(slot, pattern)
+                  onToggleMute(slot)
                 }}
                 title={isMuted ? 'Unmute channel' : 'Mute channel'}
                 aria-label={isMuted ? 'Unmute channel' : 'Mute channel'}
@@ -345,17 +419,24 @@ function EventStream({ patterns, onPatternUpdate, onHush, isInitialized }) {
         )
       })}
       
-      {/* Effects Panel */}
-      {fxPanelTrack && patterns[fxPanelTrack] && (
-        <TrackEffects
-          trackNumber={getTrackNumber(fxPanelTrack)}
-          color={CHANNEL_COLORS[getTrackNumber(fxPanelTrack) - 1]}
-          position={fxPanelPosition}
-          pattern={patterns[fxPanelTrack]}
-          onClose={handleCloseFxPanel}
-          onEffectChange={(newPattern) => handleEffectChange(fxPanelTrack, newPattern)}
-        />
-      )}
+      {/* Effects Panels - multiple can be open */}
+      {Object.entries(openFxPanels)
+        .filter(([slot]) => patterns[slot]) // Only render if pattern exists
+        .map(([slot, position]) => {
+          const trackNum = getTrackNumber(slot)
+          return (
+            <TrackEffects
+              key={slot}
+              trackNumber={trackNum}
+              trackName={trackNames ? trackNames[slot] : undefined}
+              color={CHANNEL_COLORS[trackNum - 1] || '#ffffff'}
+              position={position}
+              pattern={patterns[slot]}
+              onClose={() => handleCloseFxPanel(slot)}
+              onEffectChange={(newPattern) => handleEffectChange(slot, newPattern)}
+            />
+          )
+        })}
     </div>
   )
 }

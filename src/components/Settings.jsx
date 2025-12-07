@@ -57,7 +57,7 @@ function Settings({ onClose, settings, onSettingsChange, onRestoreDefaults }) {
           <div className="shortcuts-list">
             <div className="shortcut-row">
               <span className="shortcut-key">⌘.</span>
-              <span className="shortcut-desc">Silence all (hush)</span>
+              <span className="shortcut-desc">Mute/Unmute all tracks</span>
             </div>
             <div className="shortcut-row">
               <span className="shortcut-key">Enter</span>

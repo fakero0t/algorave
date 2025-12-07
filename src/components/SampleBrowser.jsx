@@ -15,11 +15,23 @@ const DEFAULT_SAMPLES = [
 function SampleBrowser() {
   const [samples] = useState(DEFAULT_SAMPLES)
   const [filter, setFilter] = useState('')
-  const [position, setPosition] = useState({ 
-    x: typeof window !== 'undefined' ? window.innerWidth - 280 : 500, 
-    y: 20 
-  })
+  const [position, setPosition] = useState({ x: 20, y: 80 }) // Will be adjusted on mount
   const [size, setSize] = useState({ width: 240, height: 350 })
+  const [hasInitialized, setHasInitialized] = useState(false)
+  
+  // Initialize position within event-stream bounds on mount
+  useEffect(() => {
+    if (hasInitialized) return
+    const eventStream = document.querySelector('.event-stream')
+    if (eventStream) {
+      const bounds = eventStream.getBoundingClientRect()
+      setPosition({
+        x: bounds.right - 260,
+        y: bounds.top + 10
+      })
+      setHasInitialized(true)
+    }
+  }, [hasInitialized])
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -57,10 +69,23 @@ function SampleBrowser() {
   useEffect(() => {
     const handleMouseMove = (e) => {
       if (isDragging && modalRef.current) {
-        const rect = modalRef.current.getBoundingClientRect()
-        const currentHeight = isCollapsed ? rect.height : size.height
-        const newX = Math.max(0, Math.min(window.innerWidth - size.width, e.clientX - dragOffset.x))
-        const newY = Math.max(0, Math.min(window.innerHeight - currentHeight, e.clientY - dragOffset.y))
+        const modalRect = modalRef.current.getBoundingClientRect()
+        const currentHeight = isCollapsed ? modalRect.height : size.height
+        
+        // Get the event-stream bounds (track list view)
+        const eventStream = document.querySelector('.event-stream')
+        const bounds = eventStream?.getBoundingClientRect() || { 
+          left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight 
+        }
+        
+        // Constrain to event-stream bounds
+        const minX = bounds.left
+        const maxX = bounds.right - size.width
+        const minY = bounds.top
+        const maxY = bounds.bottom - currentHeight
+        
+        const newX = Math.max(minX, Math.min(maxX, e.clientX - dragOffset.x))
+        const newY = Math.max(minY, Math.min(maxY, e.clientY - dragOffset.y))
         setPosition({ x: newX, y: newY })
       }
       if (isResizing && modalRef.current && !isCollapsed) {

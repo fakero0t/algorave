@@ -14,7 +14,8 @@ const DEFAULT_SETTINGS = {
 // LocalStorage keys
 const STORAGE_KEYS = {
   patterns: 'algorave_patterns',
-  tempo: 'algorave_tempo'
+  tempo: 'algorave_tempo',
+  trackNames: 'algorave_track_names'
 }
 
 // Load saved state from localStorage
@@ -22,19 +23,24 @@ function loadSavedState() {
   try {
     const savedPatterns = localStorage.getItem(STORAGE_KEYS.patterns)
     const savedTempo = localStorage.getItem(STORAGE_KEYS.tempo)
+    const savedTrackNames = localStorage.getItem(STORAGE_KEYS.trackNames)
     return {
       patterns: savedPatterns ? JSON.parse(savedPatterns) : {},
-      tempo: savedTempo ? parseInt(savedTempo) : DEFAULT_SETTINGS.tempo
+      tempo: savedTempo ? parseInt(savedTempo) : DEFAULT_SETTINGS.tempo,
+      trackNames: savedTrackNames ? JSON.parse(savedTrackNames) : {}
     }
   } catch (e) {
     console.error('Error loading saved state:', e)
-    return { patterns: {}, tempo: DEFAULT_SETTINGS.tempo }
+    return { patterns: {}, tempo: DEFAULT_SETTINGS.tempo, trackNames: {} }
   }
 }
 
 function AppContent() {
   const savedState = loadSavedState()
   const [patterns, setPatterns] = useState(savedState.patterns)
+  const [trackNames, setTrackNames] = useState(savedState.trackNames)
+  const [mutedChannels, setMutedChannels] = useState(new Set())
+  const [isPlaying, setIsPlaying] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const [tempo, setTempo] = useState(savedState.tempo)
@@ -43,6 +49,20 @@ function AppContent() {
     maxPolyphony: DEFAULT_SETTINGS.maxPolyphony,
     multiChannelOrbits: DEFAULT_SETTINGS.multiChannelOrbits
   })
+
+  // Handle track name update
+  const handleTrackNameUpdate = useCallback((slot, name) => {
+    setTrackNames(prev => {
+      const next = { ...prev }
+      if (name && name.trim()) {
+        next[slot] = name.trim()
+      } else {
+        delete next[slot] // Remove to use default
+      }
+      localStorage.setItem(STORAGE_KEYS.trackNames, JSON.stringify(next))
+      return next
+    })
+  }, [])
 
   // Initialize Strudel on mount
   useEffect(() => {
@@ -77,9 +97,9 @@ function AppContent() {
   }, [])
 
   // Function to play all active patterns as a stacked pattern
-  const playAllPatterns = useCallback((patternsToPlay) => {
+  const playAllPatterns = useCallback((patternsToPlay, muted = new Set()) => {
     const activePatterns = Object.entries(patternsToPlay)
-      .filter(([_, code]) => code)
+      .filter(([slot, code]) => code && !muted.has(slot))
       .map(([slot, code]) => {
         const orbitNum = parseInt(slot.replace('d', '')) - 1
         return `(${code}).orbit(${orbitNum})`
@@ -111,12 +131,29 @@ function AppContent() {
     }
   }, [])
 
-  // Replay saved patterns after Strudel initializes
-  useEffect(() => {
+  // Don't auto-play on init - wait for user to press Play
+  // (Patterns are loaded from localStorage but not played until Play is pressed)
+
+  // Handle Play button
+  const handlePlay = useCallback(() => {
     if (!isInitialized) return
-    playAllPatterns(patterns)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInitialized]) // Only run once when initialized
+    playAllPatterns(patterns, mutedChannels)
+    setIsPlaying(true)
+  }, [isInitialized, patterns, mutedChannels, playAllPatterns])
+
+  // Handle Stop button
+  const handleStop = useCallback(() => {
+    if (window._currentPlayer) {
+      try {
+        window._currentPlayer.stop()
+      } catch (e) {}
+      window._currentPlayer = null
+    }
+    if (window.hush) {
+      window.hush()
+    }
+    setIsPlaying(false)
+  }, [])
 
   // Update tempo when it changes
   const applyTempo = useCallback((newTempo) => {
@@ -175,7 +212,14 @@ function AppContent() {
     })
   }, [applyTempo])
 
-  const handlePatternUpdate = useCallback((slot, code, skipPlay = false) => {
+  const handlePatternUpdate = useCallback((slot, code) => {
+    // Clear mute state for this slot when updating
+    setMutedChannels(prev => {
+      const next = new Set(prev)
+      next.delete(slot)
+      return next
+    })
+    
     setPatterns(prev => {
       let next
       if (code === null) {
@@ -188,46 +232,81 @@ function AppContent() {
       // Save to localStorage
       localStorage.setItem(STORAGE_KEYS.patterns, JSON.stringify(next))
       
-      // Replay all patterns with the update (unless skipPlay is true)
-      if (!skipPlay) {
+      // Only replay if currently playing
+      if (isPlaying) {
+        // Get updated muted set (with this slot removed)
+        const updatedMuted = new Set(mutedChannels)
+        updatedMuted.delete(slot)
         // Use setTimeout to ensure state is updated first
-        setTimeout(() => playAllPatterns(next), 0)
+        setTimeout(() => playAllPatterns(next, updatedMuted), 0)
       }
       
       return next
     })
-  }, [playAllPatterns])
+  }, [playAllPatterns, mutedChannels, isPlaying])
 
-  const handleHush = useCallback(() => {
-    // Stop current player
-    if (window._currentPlayer) {
-      try {
-        window._currentPlayer.stop()
-      } catch (e) {}
-      window._currentPlayer = null
+  // Toggle mute for a single channel
+  const handleToggleMute = useCallback((slot) => {
+    setMutedChannels(prev => {
+      const next = new Set(prev)
+      if (next.has(slot)) {
+        next.delete(slot)
+      } else {
+        next.add(slot)
+      }
+      // Replay patterns with updated mute state (only if playing)
+      if (isPlaying) {
+        setTimeout(() => playAllPatterns(patterns, next), 0)
+      }
+      return next
+    })
+  }, [patterns, playAllPatterns, isPlaying])
+
+  // Mute all active tracks (Silence All)
+  const handleMuteAll = useCallback(() => {
+    const activeSlots = Object.keys(patterns).filter(slot => patterns[slot])
+    if (activeSlots.length === 0) return
+    
+    // Check if all are already muted
+    const allMuted = activeSlots.every(slot => mutedChannels.has(slot))
+    
+    if (allMuted) {
+      // Unmute all
+      setMutedChannels(new Set())
+      if (isPlaying) {
+        playAllPatterns(patterns, new Set())
+      }
+    } else {
+      // Mute all active tracks
+      const allMutedSet = new Set(activeSlots)
+      setMutedChannels(allMutedSet)
+      // Stop audio if playing
+      if (isPlaying) {
+        if (window._currentPlayer) {
+          try { window._currentPlayer.stop() } catch (e) {}
+          window._currentPlayer = null
+        }
+        if (window.hush) {
+          window.hush()
+        }
+      }
     }
-    // Also call global hush as backup
-    if (window.hush) {
-      window.hush()
-    }
-    setPatterns({})
-    // Clear saved patterns from localStorage
-    localStorage.setItem(STORAGE_KEYS.patterns, JSON.stringify({}))
-  }, [])
+  }, [patterns, mutedChannels, playAllPatterns, isPlaying])
+
 
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Cmd/Ctrl + . = Hush (panic)
+      // Cmd/Ctrl + . = Mute all (toggle)
       if ((e.metaKey || e.ctrlKey) && e.key === '.') {
         e.preventDefault()
-        handleHush()
+        handleMuteAll()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleHush])
+  }, [handleMuteAll])
 
   return (
     <div className="app">
@@ -240,6 +319,30 @@ function AppContent() {
           </span>
         </div>
         <div className="header-center">
+          <div className="transport-controls">
+            <button 
+              className={`transport-btn play-btn ${isPlaying ? 'active' : ''}`}
+              onClick={handlePlay}
+              title="Play all patterns"
+              disabled={!isInitialized || Object.keys(patterns).filter(k => patterns[k]).length === 0}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              Play
+            </button>
+            <button 
+              className={`transport-btn stop-btn ${!isPlaying ? 'active' : ''}`}
+              onClick={handleStop}
+              title="Stop all patterns"
+              disabled={!isInitialized || !isPlaying}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+              </svg>
+              Stop
+            </button>
+          </div>
           <div className="tempo-control">
             <label className="tempo-label">BPM</label>
             <input
@@ -255,12 +358,15 @@ function AppContent() {
             />
           </div>
           <button 
-            className="hush-btn"
-            onClick={handleHush}
-            title="Stop all (Cmd/Ctrl + .)"
-            disabled={!isInitialized}
+            className="mute-all-btn"
+            onClick={handleMuteAll}
+            title="Mute/Unmute all tracks"
+            disabled={!isInitialized || Object.keys(patterns).filter(k => patterns[k]).length === 0}
           >
-            Silence All
+            {Object.keys(patterns).length > 0 && 
+             Object.keys(patterns).every(slot => mutedChannels.has(slot)) 
+              ? 'Unmute All' 
+              : 'Mute All'}
           </button>
         </div>
         <div className="header-right">
@@ -281,7 +387,10 @@ function AppContent() {
       <EventStream 
         patterns={patterns} 
         onPatternUpdate={handlePatternUpdate}
-        onHush={handleHush}
+        mutedChannels={mutedChannels}
+        onToggleMute={handleToggleMute}
+        trackNames={trackNames}
+        onTrackNameUpdate={handleTrackNameUpdate}
         isInitialized={isInitialized}
       />
       
