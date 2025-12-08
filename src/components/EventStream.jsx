@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import TrackEffects, { DEFAULT_FX_STATE } from './TrackEffects'
 import InstrumentPicker from './InstrumentPicker'
 import PianoRollPanel from './PianoRollPanel'
+import { getSampleDisplayName } from './SampleBrowser'
 
 // Color palette for different channels (matching desktop app)
 const CHANNEL_COLORS = {
@@ -295,10 +296,10 @@ function EventStream({
               ref={el => instrumentButtonRefs.current[slot] = el}
               className={`instrument-btn ${hasInstrument ? 'has-instrument' : ''}`}
               onClick={() => setInstrumentPickerSlot(instrumentPickerSlot === slot ? null : slot)}
-              title={hasInstrument ? `Instrument: ${trackGrid.instrument}` : 'Select instrument'}
+              title={hasInstrument ? `Instrument: ${getSampleDisplayName(trackGrid.instrument)} (${trackGrid.instrument})` : 'Select instrument'}
               style={{ '--btn-color': color }}
             >
-              {hasInstrument ? trackGrid.instrument : '+'}
+              {hasInstrument ? getSampleDisplayName(trackGrid.instrument) : '+'}
             </button>
             
             {/* Grid Button - opens piano roll / note selector */}

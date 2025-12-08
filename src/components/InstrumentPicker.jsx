@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { DEFAULT_SAMPLES } from './SampleBrowser'
+import { DEFAULT_SAMPLES, getSampleDisplayName } from './SampleBrowser'
 
 function InstrumentPicker({ isOpen, onSelect, onClose, anchorRef, currentInstrument }) {
   const [filter, setFilter] = useState('')
@@ -68,9 +68,12 @@ function InstrumentPicker({ isOpen, onSelect, onClose, anchorRef, currentInstrum
     }
   }, [isOpen, onClose, anchorRef])
 
-  const filteredSamples = DEFAULT_SAMPLES.filter(s =>
-    s.toLowerCase().includes(filter.toLowerCase())
-  )
+  const filteredSamples = DEFAULT_SAMPLES.filter(s => {
+    const searchTerm = filter.toLowerCase()
+    const sampleName = s.toLowerCase()
+    const displayName = getSampleDisplayName(s).toLowerCase()
+    return sampleName.includes(searchTerm) || displayName.includes(searchTerm)
+  })
 
   const handleSelect = useCallback((sample) => {
     onSelect(sample)
@@ -103,8 +106,9 @@ function InstrumentPicker({ isOpen, onSelect, onClose, anchorRef, currentInstrum
             onClick={() => handleSelect(sample)}
             role="option"
             aria-selected={sample === currentInstrument}
+            title={sample}
           >
-            {sample}
+            {getSampleDisplayName(sample)}
           </div>
         ))}
         {filteredSamples.length === 0 && (
