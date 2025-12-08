@@ -263,12 +263,18 @@ function EventStream({
         const slot = `d${channelNum}`
         const pattern = patterns[slot]
         const color = CHANNEL_COLORS[i]
-        const isActive = !!pattern
         const isMuted = mutedChannels.has(slot)
         const isFxOpen = !!openFxPanels[slot]
 
         const trackGrid = trackGrids?.[slot] || {}
         const hasInstrument = !!trackGrid.instrument
+        // Check if track has notes (melodic or percussive)
+        const hasNotes = hasInstrument && (
+          (trackGrid.melodicNotes && trackGrid.melodicNotes.length > 0) ||
+          (trackGrid.percussiveNotes && trackGrid.percussiveNotes.length > 0)
+        )
+        // Track is active if it has a pattern OR has notes (even if pattern not synced yet)
+        const isActive = !!pattern || hasNotes
 
         return (
           <div

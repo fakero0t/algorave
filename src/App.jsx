@@ -378,7 +378,8 @@ function AppContent() {
 
   // Mute all active tracks (Silence All)
   const handleMuteAll = useCallback(() => {
-    const activeSlots = Object.keys(patterns).filter(slot => patterns[slot])
+    // Use generatedPatterns (what's actually playing) to determine active slots
+    const activeSlots = Object.keys(generatedPatterns).filter(slot => generatedPatterns[slot])
     if (activeSlots.length === 0) return
     
     // Check if all are already muted
@@ -388,7 +389,7 @@ function AppContent() {
       // Unmute all
       setMutedChannels(new Set())
       if (isPlaying) {
-        playAllPatterns(patterns, new Set())
+        playAllPatterns(generatedPatterns, new Set())
       }
     } else {
       // Mute all active tracks
@@ -405,7 +406,7 @@ function AppContent() {
         }
       }
     }
-  }, [patterns, mutedChannels, playAllPatterns, isPlaying])
+  }, [generatedPatterns, mutedChannels, playAllPatterns, isPlaying])
 
 
   // Global keyboard shortcuts
@@ -481,10 +482,10 @@ function AppContent() {
             className="mute-all-btn"
             onClick={handleMuteAll}
             title="Mute/Unmute all tracks"
-            disabled={!isInitialized || Object.keys(patterns).filter(k => patterns[k]).length === 0}
+            disabled={!isInitialized || Object.keys(generatedPatterns).filter(k => generatedPatterns[k]).length === 0}
           >
-            {Object.keys(patterns).length > 0 && 
-             Object.keys(patterns).every(slot => mutedChannels.has(slot)) 
+            {Object.keys(generatedPatterns).length > 0 && 
+             Object.keys(generatedPatterns).every(slot => mutedChannels.has(slot)) 
               ? 'Unmute All' 
               : 'Mute All'}
           </button>

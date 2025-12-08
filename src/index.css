@@ -2130,6 +2130,8 @@ body {
   overflow-x: auto;
   overflow-y: auto;
   padding: var(--space-sm);
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 .piano-roll-grid.percussive {
@@ -2167,6 +2169,9 @@ body {
   background: var(--window-bg);
   user-select: none;
   border-right: 1px solid var(--bevel-dark);
+  position: sticky;
+  left: 0;
+  z-index: 10;
 }
 
 .note-label.black-key {

@@ -45,8 +45,11 @@ function InlineModeToggle({ mode, onModeChange }) {
 
 // Melodic Grid Component
 function MelodicGrid({ instrument, notes, onNoteAdd, onNoteRemove, color, currentOctave, onOctaveChange }) {
-  const gridRef = useRef(null)
-  const noteData = getNoteNames(currentOctave, 2)
+  const scrollContainerRef = useRef(null)
+  const isProgrammaticScrollRef = useRef(false)
+  const lastScrollTopRef = useRef(0)
+  // Show 5 octaves for smooth scrolling (from octave 1 to 5)
+  const noteData = getNoteNames(1, 5)
   
   const debouncedPreview = useDebounce((inst, note) => {
     playPreview(inst, note)
@@ -69,56 +72,88 @@ function MelodicGrid({ instrument, notes, onNoteAdd, onNoteRemove, color, curren
     return notes.some(n => n.step === step && n.note === note)
   }, [notes])
   
-  // Handle wheel scroll for octave change
-  const handleWheel = useCallback((e) => {
-    e.preventDefault()
-    if (e.deltaY < 0 && currentOctave < 5) {
-      onOctaveChange(currentOctave + 1)
-    } else if (e.deltaY > 0 && currentOctave > 1) {
-      onOctaveChange(currentOctave - 1)
+  // Scroll to current octave when it changes externally (via buttons)
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (container) {
+      // Calculate scroll position to center the current octave
+      // Each octave has 12 notes, each note row is ~28px (grid-cell-size)
+      const noteHeight = 28 + 1 // cell size + gap
+      const octaveHeight = 12 * noteHeight
+      // Center the current octave (octaves are 1-5, but we show 1-5, so currentOctave is 1-indexed)
+      const targetScroll = (currentOctave - 1) * octaveHeight - (container.clientHeight / 2) + (octaveHeight / 2)
+      
+      // Mark as programmatic scroll to prevent feedback loop
+      isProgrammaticScrollRef.current = true
+      container.scrollTo({
+        top: Math.max(0, targetScroll),
+        behavior: 'smooth'
+      })
+      
+      // Reset flag after scroll completes
+      setTimeout(() => {
+        isProgrammaticScrollRef.current = false
+      }, 500)
+    }
+  }, [currentOctave])
+  
+  // Update displayed octave based on scroll position (for smooth feedback)
+  const handleScroll = useCallback(() => {
+    // Skip if this is a programmatic scroll
+    if (isProgrammaticScrollRef.current) return
+    
+    const container = scrollContainerRef.current
+    if (!container) return
+    
+    const scrollTop = container.scrollTop
+    
+    // Debounce: only update if scroll position changed significantly
+    if (Math.abs(scrollTop - lastScrollTopRef.current) < 10) return
+    lastScrollTopRef.current = scrollTop
+    
+    const noteHeight = 28 + 1
+    const octaveHeight = 12 * noteHeight
+    const visibleOctave = Math.round((scrollTop + container.clientHeight / 2) / octaveHeight) + 1
+    const clampedOctave = Math.max(1, Math.min(5, visibleOctave))
+    
+    // Only update if it's different to avoid unnecessary re-renders
+    if (clampedOctave !== currentOctave && clampedOctave >= 1 && clampedOctave <= 5) {
+      onOctaveChange(clampedOctave)
     }
   }, [currentOctave, onOctaveChange])
   
-  useEffect(() => {
-    const grid = gridRef.current
-    if (grid) {
-      grid.addEventListener('wheel', handleWheel, { passive: false })
-      return () => grid.removeEventListener('wheel', handleWheel)
-    }
-  }, [handleWheel])
-  
   return (
-    <div ref={gridRef} className="piano-roll-grid melodic">
+    <div ref={scrollContainerRef} className="piano-roll-grid melodic" onScroll={handleScroll}>
       {noteData.map(({ note, label, isBlack }) => (
-        <div key={note} className={`grid-row ${isBlack ? 'black-key' : 'white-key'}`}>
-          <div className={`note-label ${isBlack ? 'black-key' : ''}`}>
-            {label}
+          <div key={note} className={`grid-row ${isBlack ? 'black-key' : 'white-key'}`}>
+            <div className={`note-label ${isBlack ? 'black-key' : ''}`}>
+              {label}
+            </div>
+            {Array.from({ length: 16 }, (_, step) => {
+              const active = isNoteActive(step, note)
+              const isBeatMarker = step % 4 === 0
+              const isHalfBeat = step % 2 === 0 && !isBeatMarker
+              
+              return (
+                <div
+                  key={step}
+                  className={`grid-cell ${active ? 'active' : ''} ${isBeatMarker ? 'beat-marker quarter' : ''} ${isHalfBeat ? 'beat-marker eighth' : ''}`}
+                  style={{ '--track-color': color }}
+                  onClick={() => handleCellClick(step, note)}
+                  aria-label={`Step ${step + 1}, ${label}, ${active ? 'note on' : 'empty'}`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleCellClick(step, note)
+                    }
+                  }}
+                />
+              )
+            })}
           </div>
-          {Array.from({ length: 16 }, (_, step) => {
-            const active = isNoteActive(step, note)
-            const isBeatMarker = step % 4 === 0
-            const isHalfBeat = step % 2 === 0 && !isBeatMarker
-            
-            return (
-              <div
-                key={step}
-                className={`grid-cell ${active ? 'active' : ''} ${isBeatMarker ? 'beat-marker quarter' : ''} ${isHalfBeat ? 'beat-marker eighth' : ''}`}
-                style={{ '--track-color': color }}
-                onClick={() => handleCellClick(step, note)}
-                aria-label={`Step ${step + 1}, ${label}, ${active ? 'note on' : 'empty'}`}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    handleCellClick(step, note)
-                  }
-                }}
-              />
-            )
-          })}
-        </div>
-      ))}
+        ))}
     </div>
   )
 }
