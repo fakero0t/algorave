@@ -33,19 +33,3 @@ Open [http://localhost:5173](http://localhost:5173)
 1. Type a Strudel pattern in the command modal
 2. Press **Enter** to execute
 3. Use **⌘.** (Cmd+Period) to silence all
-
-## Example Patterns
-
-```javascript
-// Simple note sequence
-note("<c3 e3 g3 b3>").s("piano")
-
-// Drum pattern
-s("bd sd [~ bd] sd")
-
-// With effects
-note("<c4 e4 g4>*4")
-  .s("sawtooth")
-  .lpf(sine.range(200, 2000).slow(4))
-  .room(0.5)
-```
