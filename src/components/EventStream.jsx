@@ -72,66 +72,20 @@ const StopIcon = () => (
   </svg>
 )
 
-// Editable track label component
-function TrackLabel({ slot, channelNum, customName, onNameChange, color }) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editValue, setEditValue] = useState('')
-  const inputRef = useRef(null)
-
-  const displayName = customName || `Track ${channelNum}`
-
-  const handleDoubleClick = () => {
-    setEditValue(customName || '')
-    setIsEditing(true)
-  }
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus()
-      inputRef.current.select()
-    }
-  }, [isEditing])
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      onNameChange(slot, editValue)
-      setIsEditing(false)
-    }
-    if (e.key === 'Escape') {
-      setIsEditing(false)
-    }
-  }
-
-  const handleBlur = () => {
-    onNameChange(slot, editValue)
-    setIsEditing(false)
-  }
-
-  if (isEditing) {
-    return (
-      <input
-        ref={inputRef}
-        type="text"
-        value={editValue}
-        onChange={(e) => setEditValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
-        className="channel-label-input"
-        style={{ '--channel-color': color }}
-        placeholder={`Track ${channelNum}`}
-      />
-    )
-  }
+// Track label component - acts as instrument selector
+function TrackLabel({ slot, channelNum, instrument, onInstrumentClick, color, labelRef }) {
+  const displayName = instrument ? getSampleDisplayName(instrument) : `Track ${channelNum}`
 
   return (
-    <span 
-      className="channel-label" 
+    <button
+      ref={labelRef}
+      className="channel-label instrument-selector"
       style={{ '--channel-color': color }}
-      onDoubleClick={handleDoubleClick}
-      title="Double-click to rename"
+      onClick={onInstrumentClick}
+      title={instrument ? `Change instrument (${instrument})` : 'Select instrument'}
     >
       {displayName}
-    </span>
+    </button>
   )
 }
 
@@ -151,12 +105,14 @@ function EventStream({
   const containerRef = useRef(null)
   // Track multiple open FX panels: { "d1": { x, y }, "d3": { x, y }, ... }
   const [openFxPanels, setOpenFxPanels] = useState({})
+  // Track piano roll panel positions: { "d1": { x, y }, "d3": { x, y }, ... }
+  const [pianoRollPositions, setPianoRollPositions] = useState({})
   // Track which slot has the instrument picker open
   const [instrumentPickerSlot, setInstrumentPickerSlot] = useState(null)
-  // Track which slot has the piano roll open (only one at a time)
-  const [pianoRollSlot, setPianoRollSlot] = useState(null)
-  // Refs for instrument buttons to anchor the picker
-  const instrumentButtonRefs = useRef({})
+  // Track which slots have piano rolls open (can be multiple)
+  const [openPianoRolls, setOpenPianoRolls] = useState(new Set())
+  // Refs for track labels to anchor the instrument picker
+  const trackLabelRefs = useRef({})
 
   // Handle clearing a track (reset everything)
   const handleClearTrack = useCallback((slot) => {
@@ -165,16 +121,23 @@ function EventStream({
     // Clear FX state
     onTrackFxUpdate(slot, null)
     // Close piano roll if it was open for this track
-    if (pianoRollSlot === slot) {
-      setPianoRollSlot(null)
-    }
+    setOpenPianoRolls(prev => {
+      const next = new Set(prev)
+      next.delete(slot)
+      return next
+    })
+    setPianoRollPositions(prev => {
+      const next = { ...prev }
+      delete next[slot]
+      return next
+    })
     // Close FX panel if it was open for this track
     setOpenFxPanels(prev => {
       const next = { ...prev }
       delete next[slot]
       return next
     })
-  }, [onTrackGridUpdate, onTrackFxUpdate, pianoRollSlot])
+  }, [onTrackGridUpdate, onTrackFxUpdate])
 
   // Handle instrument selection
   const handleInstrumentSelect = useCallback((slot, instrument) => {
@@ -183,10 +146,35 @@ function EventStream({
       ...existingGrid,
       instrument,
     })
+    // Automatically set track name to instrument display name
+    onTrackNameUpdate(slot, getSampleDisplayName(instrument))
     setInstrumentPickerSlot(null)
-    // Auto-open piano roll when instrument is selected
-    setPianoRollSlot(slot)
-  }, [onTrackGridUpdate, trackGrids])
+    
+    // Auto-open piano roll and FX panel when instrument is selected
+    const eventStream = containerRef.current
+    const containerRect = eventStream?.getBoundingClientRect()
+    
+    if (containerRect) {
+      // Position piano roll on the left side
+      const pianoRollX = containerRect.left + 20
+      const pianoRollY = containerRect.top + 20
+      
+      // Position FX panel on the right side (offset to avoid overlap)
+      const fxPanelX = containerRect.right - 320
+      const fxPanelY = containerRect.top + 20
+      
+      // Close all other modals - only show modals for this track
+      setOpenPianoRolls(new Set([slot]))
+      setPianoRollPositions({
+        [slot]: { x: pianoRollX, y: pianoRollY }
+      })
+      
+      // Close all other FX panels - only show FX panel for this track
+      setOpenFxPanels({
+        [slot]: { x: fxPanelX, y: fxPanelY }
+      })
+    }
+  }, [onTrackGridUpdate, onTrackNameUpdate, trackGrids])
 
   // Handle full grid update (mode + notes) - prevents race conditions
   const handleGridUpdate = useCallback((slot, updates) => {
@@ -196,9 +184,43 @@ function EventStream({
     })
   }, [onTrackGridUpdate, trackGrids])
 
-  // Open piano roll (closes any existing one)
+  // Open piano roll
   const handleOpenPianoRoll = useCallback((slot) => {
-    setPianoRollSlot(slot)
+    const eventStream = containerRef.current
+    const containerRect = eventStream?.getBoundingClientRect()
+    
+    if (containerRect) {
+      const x = containerRect.left + 20
+      const y = containerRect.top + 20
+      
+      setOpenPianoRolls(prev => new Set(prev).add(slot))
+      setPianoRollPositions(prev => ({
+        ...prev,
+        [slot]: { x, y }
+      }))
+    }
+  }, [])
+  
+  // Close piano roll
+  const handleClosePianoRoll = useCallback((slot) => {
+    setOpenPianoRolls(prev => {
+      const next = new Set(prev)
+      next.delete(slot)
+      return next
+    })
+    setPianoRollPositions(prev => {
+      const next = { ...prev }
+      delete next[slot]
+      return next
+    })
+  }, [])
+  
+  // Update piano roll position
+  const handlePianoRollPositionChange = useCallback((slot, position) => {
+    setPianoRollPositions(prev => ({
+      ...prev,
+      [slot]: position
+    }))
   }, [])
 
   // Handle FX button click - toggle panel for this track
@@ -286,25 +308,15 @@ function EventStream({
             <TrackLabel
               slot={slot}
               channelNum={channelNum}
-              customName={trackNames?.[slot]}
-              onNameChange={onTrackNameUpdate}
+              instrument={trackGrid.instrument}
+              onInstrumentClick={() => setInstrumentPickerSlot(instrumentPickerSlot === slot ? null : slot)}
               color={color}
+              labelRef={el => trackLabelRefs.current[slot] = el}
             />
-            
-            {/* Instrument Button */}
-            <button
-              ref={el => instrumentButtonRefs.current[slot] = el}
-              className={`instrument-btn ${hasInstrument ? 'has-instrument' : ''}`}
-              onClick={() => setInstrumentPickerSlot(instrumentPickerSlot === slot ? null : slot)}
-              title={hasInstrument ? `Instrument: ${getSampleDisplayName(trackGrid.instrument)} (${trackGrid.instrument})` : 'Select instrument'}
-              style={{ '--btn-color': color }}
-            >
-              {hasInstrument ? getSampleDisplayName(trackGrid.instrument) : '+'}
-            </button>
             
             {/* Grid Button - opens piano roll / note selector */}
             <button
-              className={`grid-btn ${pianoRollSlot === slot ? 'active' : ''}`}
+              className={`grid-btn ${openPianoRolls.has(slot) ? 'active' : ''}`}
               onClick={() => handleOpenPianoRoll(slot)}
               disabled={!hasInstrument}
               title={hasInstrument ? 'Edit notes' : 'Select instrument first'}
@@ -378,25 +390,32 @@ function EventStream({
           isOpen={true}
           onSelect={(instrument) => handleInstrumentSelect(instrumentPickerSlot, instrument)}
           onClose={() => setInstrumentPickerSlot(null)}
-          anchorRef={{ current: instrumentButtonRefs.current[instrumentPickerSlot] }}
+          anchorRef={{ current: trackLabelRefs.current[instrumentPickerSlot] }}
           currentInstrument={trackGrids?.[instrumentPickerSlot]?.instrument}
         />
       )}
       
-      {/* Piano Roll Panel - only one can be open at a time */}
-      {pianoRollSlot && trackGrids?.[pianoRollSlot] && (
-        <PianoRollPanel
-          trackNumber={getTrackNumber(pianoRollSlot)}
-          trackName={trackNames?.[pianoRollSlot]}
-          color={CHANNEL_COLORS[getTrackNumber(pianoRollSlot) - 1] || '#ffffff'}
-          instrument={trackGrids[pianoRollSlot].instrument}
-          activeMode={trackGrids[pianoRollSlot].mode}
-          melodicNotes={trackGrids[pianoRollSlot].melodicNotes || []}
-          percussiveNotes={trackGrids[pianoRollSlot].percussiveNotes || []}
-          onGridUpdate={(updates) => handleGridUpdate(pianoRollSlot, updates)}
-          onClose={() => setPianoRollSlot(null)}
-        />
-      )}
+      {/* Piano Roll Panels - multiple can be open */}
+      {Array.from(openPianoRolls).map(slot => {
+        if (!trackGrids?.[slot]) return null
+        const trackNum = getTrackNumber(slot)
+        return (
+          <PianoRollPanel
+            key={slot}
+            trackNumber={trackNum}
+            trackName={trackNames?.[slot]}
+            color={CHANNEL_COLORS[trackNum - 1] || '#ffffff'}
+            instrument={trackGrids[slot].instrument}
+            activeMode={trackGrids[slot].mode}
+            melodicNotes={trackGrids[slot].melodicNotes || []}
+            percussiveNotes={trackGrids[slot].percussiveNotes || []}
+            onGridUpdate={(updates) => handleGridUpdate(slot, updates)}
+            onClose={() => handleClosePianoRoll(slot)}
+            position={pianoRollPositions[slot]}
+            onPositionChange={(pos) => handlePianoRollPositionChange(slot, pos)}
+          />
+        )
+      })}
     </div>
   )
 }

@@ -444,22 +444,29 @@ body {
   font-size: 0.9rem;
   color: var(--text-light);
   text-transform: uppercase;
-  min-width: 80px;
+  min-width: 100px;
+  max-width: 150px;
   padding: var(--space-xs) var(--space-sm);
   background: var(--teal-accent);
   border: 2px solid;
   border-color: var(--bevel-light) var(--bevel-darker) var(--bevel-darker) var(--bevel-light);
-  text-align: center;
+  text-align: left;
   white-space: nowrap;
   cursor: pointer;
   transition: var(--transition-fast);
-  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .channel-label:hover {
   background: var(--teal-light);
+}
+
+.channel-label.instrument-selector {
+  /* Additional styles if needed */
 }
 
 .channel-label-input {
@@ -1987,6 +1994,43 @@ body {
    Piano Roll Panel
    ========================================== */
 
+/* Floating modal style for piano roll */
+.piano-roll-panel.floating-modal {
+  position: fixed;
+  z-index: 1000;
+  background: var(--window-bg);
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-darker) var(--bevel-darker) var(--bevel-light);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.piano-roll-panel.floating-modal .drag-handle {
+  cursor: grab;
+  user-select: none;
+}
+
+.piano-roll-panel.floating-modal .drag-handle:active {
+  cursor: grabbing;
+}
+
+.piano-roll-panel.floating-modal .resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 0%, transparent 40%, var(--bevel-dark) 40%, var(--bevel-dark) 45%, transparent 45%, transparent 55%, var(--bevel-dark) 55%, var(--bevel-dark) 60%, transparent 60%);
+  z-index: 10;
+}
+
+.piano-roll-panel.floating-modal .resize-handle:hover {
+  background: linear-gradient(135deg, transparent 0%, transparent 40%, var(--teal-accent) 40%, var(--teal-accent) 45%, transparent 45%, transparent 55%, var(--teal-accent) 55%, var(--teal-accent) 60%, transparent 60%);
+}
+
 .piano-roll-panel {
   position: fixed;
   top: 48px;
@@ -2119,6 +2163,11 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--window-bg-light);
+  min-height: 0; /* Allow flex child to shrink */
+}
+
+.piano-roll-panel.floating-modal .piano-roll-content {
+  overflow: auto;
 }
 
 /* ==========================================

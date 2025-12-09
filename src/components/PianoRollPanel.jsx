@@ -260,7 +260,9 @@ function PianoRollPanel({
   percussiveNotes = [],
   // Single callback for all grid updates
   onGridUpdate,
-  onClose 
+  onClose,
+  position,
+  onPositionChange
 }) {
   // View mode - which grid is currently shown (can differ from activeMode)
   // Default to percussive (drum) mode
@@ -268,8 +270,101 @@ function PianoRollPanel({
   // Initialize octave based on existing melodic notes
   const [currentOctave, setCurrentOctave] = useState(() => getOptimalOctave(melodicNotes))
   const panelRef = useRef(null)
+  const headerRef = useRef(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [size, setSize] = useState({ width: 600, height: 500 })
+  const [zIndex, setZIndex] = useState(1000)
+  const [hasInitialized, setHasInitialized] = useState(false)
   
   const displayName = trackName || `Track ${trackNumber}`
+  
+  // Initialize position within event-stream bounds on mount
+  useEffect(() => {
+    if (hasInitialized || !position) return
+    const eventStream = document.querySelector('.event-stream')
+    if (eventStream) {
+      const bounds = eventStream.getBoundingClientRect()
+      const initialPos = {
+        x: bounds.left + 20,
+        y: bounds.top + 20
+      }
+      onPositionChange(initialPos)
+      setHasInitialized(true)
+    }
+  }, [hasInitialized, position, onPositionChange])
+  
+  // Min/max size constraints
+  const minWidth = 400
+  const minHeight = 300
+  const maxWidth = typeof window !== 'undefined' ? window.innerWidth * 0.9 : 1200
+  const maxHeight = typeof window !== 'undefined' ? window.innerHeight * 0.9 : 800
+  
+  // Drag handlers
+  const handleMouseDown = useCallback((e) => {
+    if (e.target.closest('.drag-handle')) {
+      setIsDragging(true)
+      setDragOffset({
+        x: e.clientX - (position?.x || 0),
+        y: e.clientY - (position?.y || 0)
+      })
+    }
+  }, [position])
+  
+  const handleResizeMouseDown = useCallback((e) => {
+    e.stopPropagation()
+    setIsResizing(true)
+  }, [])
+  
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (isDragging && panelRef.current && position) {
+        const eventStream = document.querySelector('.event-stream')
+        const bounds = eventStream?.getBoundingClientRect() || { 
+          left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight 
+        }
+        
+        const minX = bounds.left
+        const maxX = bounds.right - size.width
+        const minY = bounds.top
+        const maxY = bounds.bottom - size.height
+        
+        const newX = Math.max(minX, Math.min(maxX, e.clientX - dragOffset.x))
+        const newY = Math.max(minY, Math.min(maxY, e.clientY - dragOffset.y))
+        onPositionChange({ x: newX, y: newY })
+      }
+      if (isResizing && panelRef.current) {
+        const rect = panelRef.current.getBoundingClientRect()
+        const newWidth = Math.min(maxWidth, Math.max(minWidth, e.clientX - rect.left))
+        const newHeight = Math.min(maxHeight, Math.max(minHeight, e.clientY - rect.top))
+        setSize({ width: newWidth, height: newHeight })
+      }
+    }
+    
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      setIsResizing(false)
+    }
+    
+    if (isDragging || isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDragging, isResizing, dragOffset, position, size, maxWidth, maxHeight, minWidth, minHeight, onPositionChange])
+  
+  const bringToFront = useCallback(() => {
+    setZIndex(Date.now() % 10000 + 1000)
+  }, [])
+  
+  const stopPropagation = useCallback((e) => {
+    e.stopPropagation()
+  }, [])
   
   // Get notes for current view
   const currentNotes = viewMode === 'melodic' ? melodicNotes : percussiveNotes
@@ -315,13 +410,30 @@ function PianoRollPanel({
     }
   }, [viewMode, onGridUpdate])
   
+  if (!position) return null
+  
   return (
     <div 
       ref={panelRef}
-      className="piano-roll-panel open"
-      style={{ '--track-color': color }}
+      className="piano-roll-panel floating-modal"
+      style={{ 
+        '--track-color': color,
+        left: position.x,
+        top: position.y,
+        width: size.width,
+        height: size.height,
+        zIndex
+      }}
+      onMouseDown={bringToFront}
+      onWheel={stopPropagation}
+      onScroll={stopPropagation}
+      onPointerDown={stopPropagation}
     >
-      <div className="piano-roll-header">
+      <div 
+        ref={headerRef}
+        className="piano-roll-header drag-handle"
+        onMouseDown={handleMouseDown}
+      >
         <span className="piano-roll-title">
           {displayName} - {instrument}
         </span>
@@ -396,6 +508,7 @@ function PianoRollPanel({
       
       {/* Aria live region for announcements */}
       <div aria-live="polite" className="sr-only" />
+      <div className="resize-handle" onMouseDown={handleResizeMouseDown} />
     </div>
   )
 }
