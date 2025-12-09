@@ -100,7 +100,8 @@ function EventStream({
   onTrackGridUpdate,
   trackFx,
   onTrackFxUpdate,
-  isInitialized 
+  isInitialized,
+  powerUseMode
 }) {
   const containerRef = useRef(null)
   // Track multiple open FX panels: { "d1": { x, y }, "d3": { x, y }, ... }
@@ -324,6 +325,27 @@ function EventStream({
             >
               {trackGrid.mode === 'melodic' ? '🎹' : '🥁'}
             </button>
+
+            {/* Power Use Mode - Code Editor */}
+            {powerUseMode && (
+              <div className="power-mode-code-input-wrapper">
+                <input
+                  type="text"
+                  className="power-mode-code-input"
+                  value={pattern || ''}
+                  onChange={(e) => {
+                    const newCode = e.target.value
+                    if (newCode.trim()) {
+                      onPatternUpdate(slot, newCode)
+                    } else {
+                      onPatternUpdate(slot, null)
+                    }
+                  }}
+                  placeholder="No code"
+                  title="Edit track code"
+                />
+              </div>
+            )}
 
             <button
               className={`channel-mute-btn ${isMuted ? 'muted' : ''} ${!isActive ? 'disabled' : ''}`}

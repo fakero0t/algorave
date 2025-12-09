@@ -83,6 +83,7 @@ function AppContent() {
     maxPolyphony: DEFAULT_SETTINGS.maxPolyphony,
     multiChannelOrbits: DEFAULT_SETTINGS.multiChannelOrbits
   })
+  const [powerUseMode, setPowerUseMode] = useState(false)
 
   // Handle track name update
   const handleTrackNameUpdate = useCallback((slot, name) => {
@@ -489,6 +490,13 @@ function AppContent() {
               ? 'Unmute All' 
               : 'Mute All'}
           </button>
+          <button 
+            className={`power-use-mode-btn ${powerUseMode ? 'active' : ''}`}
+            onClick={() => setPowerUseMode(!powerUseMode)}
+            title="Power Use Mode - Show code editors"
+          >
+            ⚡ Power Mode
+          </button>
         </div>
         <div className="header-right">
           <button 
@@ -517,6 +525,7 @@ function AppContent() {
         trackFx={trackFx}
         onTrackFxUpdate={handleTrackFxUpdate}
         isInitialized={isInitialized}
+        powerUseMode={powerUseMode}
       />
       
       <SampleBrowser 

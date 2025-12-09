@@ -381,6 +381,33 @@ body {
   cursor: not-allowed;
 }
 
+.power-use-mode-btn {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--window-bg);
+  border: 2px solid;
+  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
+  font-family: var(--font-pixel);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  color: var(--text-dark);
+}
+
+.power-use-mode-btn:hover {
+  background: var(--window-bg-light);
+}
+
+.power-use-mode-btn:active {
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+}
+
+.power-use-mode-btn.active {
+  background: var(--peach);
+  color: var(--text-dark);
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+}
+
 .header-settings-btn {
   display: flex;
   align-items: center;
@@ -1988,6 +2015,64 @@ body {
 .grid-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* ==========================================
+   Power Use Mode - Code Input
+   ========================================== */
+
+.power-mode-code-input-wrapper {
+  flex: 1;
+  min-width: 0;
+  max-width: 400px;
+  display: flex;
+  align-items: center;
+  margin: 0 var(--space-xs);
+}
+
+.power-mode-code-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-dark);
+  background: var(--cream);
+  padding: var(--space-xs) var(--space-sm);
+  border: 2px solid;
+  border-color: var(--bevel-dark) var(--bevel-light) var(--bevel-light) var(--bevel-dark);
+  outline: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  transition: var(--transition-fast);
+}
+
+.power-mode-code-input::placeholder {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.power-mode-code-input:focus {
+  background: var(--text-light);
+  border-color: var(--teal-accent);
+  box-shadow: inset 0 0 0 1px var(--teal-accent);
+}
+
+.power-mode-code-input::-webkit-scrollbar {
+  height: 4px;
+}
+
+.power-mode-code-input::-webkit-scrollbar-track {
+  background: var(--window-bg);
+}
+
+.power-mode-code-input::-webkit-scrollbar-thumb {
+  background: var(--bevel-dark);
+  border-radius: 2px;
+}
+
+.power-mode-code-input::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 /* ==========================================
