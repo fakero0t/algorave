@@ -4,6 +4,7 @@ import SampleBrowser from './components/SampleBrowser'
 import Settings from './components/Settings'
 import { ToastProvider } from './components/Toast'
 import { generatePattern } from './utils/codeGenerator'
+import { parsePattern, extractFxChain } from './utils/codeParser'
 
 // Default settings
 const DEFAULT_SETTINGS = {
@@ -84,6 +85,7 @@ function AppContent() {
     multiChannelOrbits: DEFAULT_SETTINGS.multiChannelOrbits
   })
   const [powerUseMode, setPowerUseMode] = useState(false)
+  const [manualPatterns, setManualPatterns] = useState({})
 
   // Handle track name update
   const handleTrackNameUpdate = useCallback((slot, name) => {
@@ -150,17 +152,29 @@ function AppContent() {
       Object.keys(next).forEach(slot => {
         if (!trackGrids[slot]) {
           delete next[slot]
+          // Also clear manual pattern if it exists
+          setManualPatterns(prev => {
+            const next = { ...prev }
+            delete next[slot]
+            return next
+          })
         }
       })
       
-      // Update patterns from grids
+      // Update patterns from grids (unless there's a manual override)
       Object.keys(generatedPatterns).forEach(slot => {
-        next[slot] = generatedPatterns[slot]
+        // Only use generated pattern if there's no manual override
+        if (!manualPatterns[slot]) {
+          next[slot] = generatedPatterns[slot]
+        } else {
+          // Keep manual pattern
+          next[slot] = manualPatterns[slot]
+        }
       })
       
-      // Remove patterns for slots with grids but no notes
+      // Remove patterns for slots with grids but no notes (unless manual)
       Object.keys(trackGrids).forEach(slot => {
-        if (!generatedPatterns[slot]) {
+        if (!generatedPatterns[slot] && !manualPatterns[slot]) {
           delete next[slot]
         }
       })
@@ -170,7 +184,7 @@ function AppContent() {
       
       return next
     })
-  }, [generatedPatterns, trackGrids])
+  }, [generatedPatterns, trackGrids, manualPatterns])
 
   // Initialize Strudel on mount
   useEffect(() => {
@@ -327,6 +341,63 @@ function AppContent() {
     })
   }, [applyTempo])
 
+  // Handle code update from power mode - parse and update trackGrids
+  const handleCodeUpdate = useCallback((slot, code) => {
+    if (!code || !code.trim()) {
+      // Clear the track
+      handleTrackGridUpdate(slot, null)
+      // Clear manual pattern
+      setManualPatterns(prev => {
+        const next = { ...prev }
+        delete next[slot]
+        return next
+      })
+      return
+    }
+
+    // Parse the code to extract track grid state
+    const parsed = parsePattern(code)
+    if (parsed) {
+      // Clear manual pattern since we're syncing with grid
+      setManualPatterns(prev => {
+        const next = { ...prev }
+        delete next[slot]
+        return next
+      })
+      
+      // Update track grid with parsed data
+      handleTrackGridUpdate(slot, {
+        ...trackGrids[slot],
+        ...parsed
+      })
+      
+      // Note: FX parsing from code chain would be complex, so we preserve existing FX
+      // User can still edit FX via the FX panel
+    } else {
+      // If parsing fails, store as manual override
+      // This allows users to write custom code that doesn't map to grid
+      setManualPatterns(prev => ({
+        ...prev,
+        [slot]: code
+      }))
+      
+      // Update patterns immediately for playback
+      setPatterns(prev => {
+        const next = { ...prev, [slot]: code }
+        localStorage.setItem(STORAGE_KEYS.patterns, JSON.stringify(next))
+        
+        if (isPlaying) {
+          const updatedMuted = new Set(mutedChannels)
+          updatedMuted.delete(slot)
+          setTimeout(() => playAllPatterns(next, updatedMuted), 0)
+        }
+        
+        return next
+      })
+    }
+  }, [trackGrids, handleTrackGridUpdate, mutedChannels, isPlaying])
+
+  // Legacy handler for CommandModal - still updates patterns directly
   const handlePatternUpdate = useCallback((slot, code) => {
     // Clear mute state for this slot when updating
     setMutedChannels(prev => {
@@ -516,6 +587,8 @@ function AppContent() {
       <EventStream 
         patterns={patterns} 
         onPatternUpdate={handlePatternUpdate}
+        onCodeUpdate={handleCodeUpdate}
+        generatedPatterns={generatedPatterns}
         mutedChannels={mutedChannels}
         onToggleMute={handleToggleMute}
         trackNames={trackNames}
@@ -526,6 +599,7 @@ function AppContent() {
         onTrackFxUpdate={handleTrackFxUpdate}
         isInitialized={isInitialized}
         powerUseMode={powerUseMode}
+        manualPatterns={manualPatterns}
       />
       
       <SampleBrowser 
