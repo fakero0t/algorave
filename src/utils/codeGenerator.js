@@ -25,24 +25,36 @@ export function generatePattern(trackGrid, trackFx = {}) {
   const slots = Array(16).fill('~')
   
   // Group notes by step (for chords in melodic mode)
+  // Handle note durations using Strudel's elongation operator @
   const notesByStep = {}
   notes.forEach(n => {
-    const step = n.step
-    if (!notesByStep[step]) notesByStep[step] = []
+    const startStep = n.step
+    const duration = n.duration || 1
+    
+    // Only place the note at its start step, with duration specified using @
+    if (!notesByStep[startStep]) notesByStep[startStep] = []
+    
     if (mode === 'melodic') {
-      notesByStep[step].push(n.note)
+      // For melodic notes, use @ operator for duration > 1
+      const noteValue = duration > 1 ? `${n.note}@${duration}` : n.note
+      notesByStep[startStep].push(noteValue)
     } else {
-      notesByStep[step].push(instrument)
+      // For percussive notes, use @ operator for duration > 1
+      const noteValue = duration > 1 ? `${instrument}@${duration}` : instrument
+      notesByStep[startStep].push(noteValue)
     }
   })
   
   // Fill slots
   Object.entries(notesByStep).forEach(([step, stepNotes]) => {
-    if (stepNotes.length === 1) {
-      slots[parseInt(step)] = stepNotes[0]
-    } else {
-      // Multiple notes = chord
-      slots[parseInt(step)] = `[${stepNotes.join(',')}]`
+    const stepNum = parseInt(step)
+    if (stepNum >= 0 && stepNum < 16) {
+      if (stepNotes.length === 1) {
+        slots[stepNum] = stepNotes[0]
+      } else {
+        // Multiple notes = chord (each note can have its own duration)
+        slots[stepNum] = `[${stepNotes.join(',')}]`
+      }
     }
   })
   

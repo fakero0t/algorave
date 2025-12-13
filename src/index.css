@@ -2275,6 +2275,127 @@ body {
   padding: var(--space-lg) var(--space-sm);
 }
 
+/* ==========================================
+   Piano Roll Timeline
+   ========================================== */
+
+.piano-roll-timeline {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding: var(--space-sm);
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+.timeline-content {
+  position: relative;
+  min-height: 100%;
+}
+
+.timeline-row {
+  display: flex;
+  align-items: stretch;
+  min-height: calc(var(--grid-cell-size) + 1px);
+  position: relative;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+.timeline-steps {
+  flex: 1;
+  position: relative;
+  min-height: var(--grid-cell-size);
+  background-image: 
+    repeating-linear-gradient(
+      to right,
+      transparent,
+      transparent calc(var(--grid-cell-size) - 1px),
+      rgba(128, 128, 128, 0.3) calc(var(--grid-cell-size) - 1px),
+      rgba(128, 128, 128, 0.3) var(--grid-cell-size)
+    );
+}
+
+.step-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--grid-cell-size);
+  pointer-events: none;
+  border-left: 1px solid rgba(128, 128, 128, 0.5);
+}
+
+.step-marker.beat-marker.quarter {
+  border-left: 2px solid var(--beat-line-color);
+}
+
+.step-marker.beat-marker.eighth {
+  border-left: 1px solid var(--half-beat-line-color);
+}
+
+.timeline-note {
+  position: absolute;
+  background: var(--track-color, var(--teal-accent));
+  border: 1px solid var(--teal-dark);
+  border-radius: 2px;
+  cursor: move;
+  user-select: none;
+  z-index: 5;
+  transition: opacity 0.1s ease;
+}
+
+.timeline-note:hover {
+  opacity: 0.9;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.timeline-note.preview {
+  opacity: 0.6;
+  border-style: dashed;
+  pointer-events: none;
+}
+
+.note-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 10;
+}
+
+.note-resize-handle-left {
+  left: -3px;
+}
+
+.note-resize-handle-right {
+  right: -3px;
+}
+
+.timeline-note:hover .note-resize-handle {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.timeline-note:hover .note-resize-handle-left {
+  border-left: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+.timeline-note:hover .note-resize-handle-right {
+  border-right: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+.timeline-note.preview.resize-preview {
+  opacity: 0.8;
+  border-style: solid;
+  border-color: var(--track-color);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
+}
+
+.timeline-note.resizing {
+  opacity: 0.3;
+}
+
 .grid-row {
   display: flex;
   align-items: stretch;
